@@ -423,7 +423,7 @@ def draw():
 		thickness = 2 if i % 5 == 0 else 1
 		pg.draw.line(screen, BLACK, (offset, offset + i * dif), (offset + dif * N, offset + i * dif), thickness)
 		pg.draw.line(screen, BLACK, (offset + i * dif, offset), (offset + i * dif, offset + dif * N), thickness)
-
+	
 	# Draw numbers
 	screen.blit(font1.render(str(h), 1, BLACK), (14, 3))
 	forset = 25
