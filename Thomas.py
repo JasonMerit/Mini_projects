@@ -7,7 +7,7 @@ import time
 
 
 #class MineSweeper():
-W, H, M = 10, 10, 10
+W, H, M = 10, 10, 3
 np.random.seed(0)
 
 dir_x = [1, 1, 0,-1,-1,-1, 0, 1]
@@ -46,9 +46,15 @@ def draw():
 
 			# Draw number
 			n = player[y, x]
-			if n == 0:
+			if n == 0:  # Empty
 				rect = pg.Rect(x*size, y*size, size, size)
-				pg.draw.rect(screen, WHITE, rect, size)
+				pg.draw.rect(screen, WHITE, rect, 0)
+			elif n == -1:  # Flag
+				xs, ys = x * size, y * size
+				points=[(xs + 10, ys + 4), (xs + 18, ys + 9), (xs + 10, ys + 14)]  # Flag
+				pg.draw.polygon(screen, colors[2], points)
+				pg.draw.line(screen, BLACK, (xs + 10, ys + 4), (xs + 10, ys + 20))  # Pole
+
 			elif n > 0:
 				txt = font2.render(str(n), 1, colors[n-1])
 				screen.blit(txt, (8 + x * size, y * size))
@@ -64,6 +70,15 @@ def game_over_txt():
 	screen.blit(txt, (W * size / 10 + size, H * 3 / 7 * size))
 
 	pg.display.flip()
+
+def game_won_txt():
+	txt = font1.render("Game Won", 1, BLACK)
+	screen.blit(txt, (W * size / 10, H / 4 * size))
+
+	txt = font2.render("Press 'R' to try again", 1, BLACK)
+	screen.blit(txt, (W * size / 10 + size, H * 3 / 7 * size))
+
+	pg.display.flip()
 	
 def show_mines():
 	points = np.argwhere(mines)
@@ -71,6 +86,13 @@ def show_mines():
 		pg.draw.circle(screen, BLACK, ((x + 0.5) * size, (y + 0.5) * size), 5)
 	
 	pg.display.flip()
+
+# def show_all():
+# 	for x in range(W):
+# 		for y in range(H):
+# 			pg.draw.circle(screen, BLACK, ((x + 0.5) * size, (y + 0.5) * size), 5)
+	
+# 	pg.display.flip()
 
 
 # ------------ Game logic -------------------
@@ -114,28 +136,6 @@ def fill_grid(mines):
 
 	return Y
 
-
-
-def sweep(point):
-	# @Params: point (y, x)
-	# Updates player following
-	# - Positive, then only updates that number
-	# - Negative, GAMEOVER
-	# - 0, flood all 0s and adjacent numbers
-	# @Returns False if game over
-	
-	v = grid[point]
-	print(v)
-	if v == -1:
-		return False
-	
-	if v == 0:  # Picked empty
-		reveal(point)
-	else:
-		player[point] = v
-
-	return True
-	
 def reveal(point):
 	# @Returns truth table of revealed area from point
 	# Assumed point is hidden
@@ -166,9 +166,46 @@ def reveal(point):
 	# Return A and execute rest outside to avoid out of scope referencing of player and grid
 	np.copyto(player, grid, where=A)  # Copy over where appropiate
 
-def game_over():
-	game_over_txt()
-	show_mines()
+
+def sweep(point: tuple):
+	""" 
+	@Params: point (y, x)
+	@Returns False if game over
+	Updates player following
+	- Positive, then only updates that number
+	- Negative, GAMEOVER
+	- 0, flood all 0s and adjacent numbers
+	"""
+	
+	v = grid[point]
+	if v == -1:
+		return False
+	
+	if v == 0:  # Picked empty
+		reveal(point)
+		# Actually do the update here
+	else:
+		player[point] = v
+
+	return True
+
+def flag(point: tuple):
+	if player[point] > 0: return
+	player[point] = -1 if player[point] != -1 else -2
+
+
+def game_over(win=False):
+	if win:
+		game_won_txt()
+		#show_all()
+	else:
+		game_over_txt()
+		show_mines()
+
+def is_won():
+	# Determine if game won by all numbers (non-mines) uncovered
+	A = player >= 0
+	return np.all(A != mines)
 
 # ----- Input handling -----
 
@@ -192,16 +229,23 @@ def process_input():
 			pass
 	
 	elif event.type == pg.MOUSEBUTTONDOWN and not is_game_over:
+		pos = pg.mouse.get_pos()
+		point = np.array(pos)[::-1] // size  # Flip and map to grid
 		if event.button == 1:
-			pos = pg.mouse.get_pos()
-			point = np.array(pos)[::-1] // size  # Flip and map to grid
 			if not sweep(tuple(point)):
 				is_game_over = True
 				game_over()
+
 			else:
-				draw()
-		elif event.button == 3:
-			pass # Flag???
+				if is_won():
+					game_over(True)
+				else:
+					draw()
+
+
+		elif event.button == 3:  # Right click to flag
+			flag(tuple(point))
+			draw()
 
 mines, grid, player = restart()
 is_game_over = False
