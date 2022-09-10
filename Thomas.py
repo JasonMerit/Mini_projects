@@ -3,11 +3,10 @@ from sys import exit
 
 from scipy.ndimage import label, binary_dilation
 import pygame as pg
-import time
 
 
 #class MineSweeper():
-W, H, M = 10, 10, 3
+W, H, M = 10, 15, 10
 np.random.seed(0)
 
 dir_x = [1, 1, 0,-1,-1,-1, 0, 1]
@@ -22,8 +21,6 @@ Following 2d arrays are used
 
 # ---------- Visualizing --------
 size = 24
-dif = 500 * 0.8 / W
-offset = 500 / 2 - dif * W / 2
 screen = pg.display.set_mode([W * size, H * size])
 
 WHITE, GREY, BLACK = (255, 255, 255),  (200, 200, 200), (0, 0, 0)
@@ -197,7 +194,7 @@ def flag(point: tuple):
 def game_over(win=False):
 	if win:
 		game_won_txt()
-		#show_all()
+		
 	else:
 		game_over_txt()
 		show_mines()
