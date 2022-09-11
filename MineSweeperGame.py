@@ -5,13 +5,18 @@ from sys import exit
 from scipy.ndimage import label, binary_dilation
 import pygame as pg
 
+# TODO Chording?
+# TODO Save win rate after restarting
+# TODO Timer
+# TODO History of moves within a WxH 2d list
+# np.random.seed(99)
 dir_x = [1, 1, 0,-1,-1,-1, 0, 1]
 dir_y = [0,-1,-1,-1, 0, 1, 1, 1]
 
 size = 24
 WHITE, GREY, BLACK = (240, 240, 240),  (200, 200, 200), (0, 0, 0)
 colors = [(0, 0, 255), (0, 128, 0), (255, 0, 0), (42, 42, 148),  # Blue, Green, Red, d_Blue
-        (128, 0 ,0), (42, 148, 148), BLACK, GREY]  			 # d_Red, turqoise, Black, Grey
+        (128, 0 ,0), (42, 148, 148), BLACK, (160, 160, 160)]  			 # d_Red, turqoise, Black, Grey
 
 pg.display.set_caption('MineSweeper')
 pg.font.init()
@@ -23,28 +28,31 @@ class MineSweeper():
     Following 2d arrays are used
     - mines: 1 for mines
     - grid: is map of all elements (-1 for mines, 0 for empty and rest for numbers)
-    - player what is currently revealed to player (-2 for Hidden)
+    - player what is currently revealed to player (0, hidden, -1, flagged, -2 for Hidden)
     """
     W, H, M = 0, 0, 0
     mines, grid, player = 0, 0, 0
+    first = True
 
     def __init__(self, width, height, mine_count):
         self.W, self.H, self.M = width, height, mine_count
         self.screen = pg.display.set_mode([width * size, height * size])
 
-        self.restart()
+        self.reset()
         self.is_game_over = False
-        self.draw()
 
-        while True:
-            self.process_input()
-
+        # while True:
+        #     self.process_input()
+    
+    
     # ---------- Public --------------
-
+    # history = []
     def left_click(self, point):
         # Handles tuple or list or np.array
         # @Returns player
-        point_of_explosion = self.sweep(tuple(point))
+        # history.append(point)
+        point = tuple(point)
+        point_of_explosion = self.sweep(point)
         if point_of_explosion:  # BOOM
             self.is_game_over = True
             self.game_over(point_of_explosion)
@@ -65,7 +73,8 @@ class MineSweeper():
     def reset(self):
         # @Returns fresh player
         self.restart()
-        return self.player
+        self.left_click(self.guess())  # Auto first move
+        # return self.player
 
     # ---------- Visualizing --------
     
@@ -73,17 +82,19 @@ class MineSweeper():
     # TODO Redundant code. Refactor with helper draw_square(point)
 
     def draw(self):
+        # Numbered white
+        # Empty white
+        # Else grey
         self.screen.fill(BLACK)
         for x in range(self.W):
             for y in range(self.H):
-                # Draw square
+                # Draw square 
                 rect = pg.Rect(x*size, y*size, size-1, size-1)
                 pg.draw.rect(self.screen, GREY, rect, 0)
 
                 # Draw number
                 n = self.player[y, x]
                 if n == 0:  # Empty
-                    rect = pg.Rect(x*size, y*size, size-1, size-1)
                     pg.draw.rect(self.screen, WHITE, rect, 0)
                 elif n == -1:  # Flag
                     xs, ys = x * size, y * size
@@ -92,6 +103,7 @@ class MineSweeper():
                     pg.draw.line(self.screen, BLACK, (xs + 10, ys + 4), (xs + 10, ys + 20))  # Pole
 
                 elif n > 0:
+                    pg.draw.rect(self.screen, WHITE, rect, 0)
                     txt = font2.render(str(n), 1, colors[n-1])
                     self.screen.blit(txt, (8 + x * size, y * size))
         pg.display.flip()
@@ -159,16 +171,33 @@ class MineSweeper():
 
 
     # ------------ Game logic -------------------
-
-    def restart(self):
-        self.mines = self.place_mines()
-        # print(mines)
-        self.grid = self.fill_grid(self.mines)
-        # print(grid)
+    def first_move(self, point):
+        
+        if self.mines[point] == 1:
+            y, x = np.nonzero(self.mines == 0)
+            y, x = y[0], x[0]
+            self.mines[y, x] = 1
+            self.mines[point] = 0
+            # self.grid = self.fill_grid(self.mines)
+            self.restart(False)
+        self.draw()
+    
+    def restart(self, hard=True):
+        if hard:
+            self.mines = self.place_mines()
         self.player = np.full(self.mines.shape, -2, dtype=int) 
+        self.grid = self.fill_grid(self.mines)
+        self.first = True
+        self.is_game_over = False
+
+        self.draw()
+        
+        
+        # print(mines)
+        # print(grid)
 
     def guess(self):
-        return np.random.randint(self.H), np.random.randint(self.W)
+        return (np.random.randint(self.H), np.random.randint(self.W))
 
     def place_mines(self):
         X = np.zeros((self.H, self.W), dtype=int)  # 1 where mines
@@ -206,7 +235,7 @@ class MineSweeper():
         A = self.grid.copy()
         A[A != 0] = 1    # Convert all to 1 except empty
         A = 1 - A        # Flip to identify empties
-        A, n = label(A)  # Label groups
+        A, n = label(A, np.ones((3, 3)))  # Label groups
         # indices = np.indices(A.shape).T[:,:,[1, 0]]  # Create indices for extraction later
         # indices = np.indices(A.shape).T  # Create indices for extraction later
 
@@ -221,8 +250,9 @@ class MineSweeper():
 
         # Dilate this group once (the edge)
         A[A != i] = 0  # Erase all other groups
-        A = binary_dilation(A)            # Dilate binary image and produce truth table
-        A = np.logical_and(A, 1 - self.mines)  # Keep mines hidden
+        structure = np.ones((3, 3))
+        A = binary_dilation(A, structure)            # Dilate binary image and produce truth table
+        A = np.logical_and(A, 1 - self.mines)  # Keep mines hidden and empty hidden 
 
         # Return A and execute rest outside to avoid out of scope referencing of player and grid
         np.copyto(self.player, self.grid, where=A)  # Copy over where appropiate
@@ -237,6 +267,10 @@ class MineSweeper():
         - Negative, GAMEOVER
         - 0, flood all 0s and adjacent numbers
         """
+        if self.first:
+            self.first_move(point)
+            self.first = False
+        
         if self.player[point] == -1: return None  # Flagged can't be sweeped
         
         v = self.grid[point]
@@ -252,7 +286,7 @@ class MineSweeper():
         return None
 
     def flag(self, point: tuple):
-        if self.player[point] > 0: return
+        if self.player[point] >= 0: return
         self.player[point] = -1 if self.player[point] != -1 else -2
 
 
@@ -272,31 +306,30 @@ class MineSweeper():
     # ----- Input handling -----
 
     def process_input(self):
-        event = pg.event.wait()
+        for event in pg.event.get():
 
-        if event.type == pg.QUIT:
-            pg.quit()
-            exit()
-
-        elif event.type == pg.KEYDOWN:
-            if event.key == pg.K_ESCAPE:
+            if event.type == pg.QUIT:
                 pg.quit()
                 exit()
-            if event.key == pg.K_r:
-                self.restart()
-                self.is_game_over = False
-                self.draw()
-            if event.key == pg.K_SPACE:
-                pass
-        
-        elif event.type == pg.MOUSEBUTTONUP and not self.is_game_over:
-            pos = pg.mouse.get_pos()
-            point = np.array(pos)[::-1] // size  # Flip and map to grid
-            if event.button == 1:
-                self.left_click(point)
 
-            elif event.button == 3:  # Right click to flag
-                self.right_click(point)
+            elif event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    pg.quit()
+                    exit()
+                if event.key == pg.K_r:
+                    self.reset()
+                    
+                if event.key == pg.K_SPACE:
+                    pass
+            
+            elif event.type == pg.MOUSEBUTTONUP and not self.is_game_over:
+                pos = pg.mouse.get_pos()
+                point = np.array(pos)[::-1] // size  # Flip and map to grid
+                if event.button == 1:
+                    self.left_click(point)
+
+                elif event.button == 3:  # Right click to flag
+                    self.right_click(point)
 
     
 
