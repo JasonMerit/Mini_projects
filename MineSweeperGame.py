@@ -306,32 +306,31 @@ class MineSweeper():
     # ----- Input handling -----
 
     def process_input(self):
-        for event in pg.event.get():
+        event = pg.event.wait()
+        if event.type == pg.QUIT:
+            pg.quit()
+            exit()
 
-            if event.type == pg.QUIT:
+        elif event.type == pg.KEYDOWN:
+            if event.key == pg.K_ESCAPE:
                 pg.quit()
                 exit()
+            if event.key == pg.K_r:
+                self.reset()
+                
+            if event.key == pg.K_SPACE:
+                return "j"
+        
+        elif event.type == pg.MOUSEBUTTONUP and not self.is_game_over:
+            pos = pg.mouse.get_pos()
+            point = np.array(pos)[::-1] // size  # Flip and map to grid
+            if event.button == 1:
+                self.left_click(point)
 
-            elif event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE:
-                    pg.quit()
-                    exit()
-                if event.key == pg.K_r:
-                    self.reset()
-                    
-                if event.key == pg.K_SPACE:
-                    pass
-            
-            elif event.type == pg.MOUSEBUTTONUP and not self.is_game_over:
-                pos = pg.mouse.get_pos()
-                point = np.array(pos)[::-1] // size  # Flip and map to grid
-                if event.button == 1:
-                    self.left_click(point)
+            elif event.button == 3:  # Right click to flag
+                self.right_click(point)
 
-                elif event.button == 3:  # Right click to flag
-                    self.right_click(point)
 
-    
 
 
 

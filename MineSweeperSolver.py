@@ -2,8 +2,8 @@ import numpy as np
 from MineSweeperGame import MineSweeper
 from scipy.ndimage import label, binary_dilation
 
-W, H = 16, 20
-MS = MineSweeper(W, H, 25)
+W, H = 40, 30
+MS = MineSweeper(W, H, 150)
 # MS = MineSweeper(W, H, W*H*33//160)
 
 dir_x = [1, 1, 0,-1,-1,-1, 0, 1]
@@ -44,7 +44,11 @@ def basic_sweeping():
     # Number = #Flagged - Number satisfied, so, all touching empty
     pass
 
-basic_flagging()
+def step():
+    basic_flagging()
+
+# step()
 
 while True:
-    MS.process_input()
+    if MS.process_input():
+        step()
