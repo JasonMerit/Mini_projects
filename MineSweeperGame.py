@@ -1,6 +1,8 @@
 import colorsys
 import numpy as np
 from sys import exit
+import csv
+
 
 from scipy.ndimage import label, binary_dilation
 import pygame as pg
@@ -33,54 +35,65 @@ class MineSweeper():
     W, H, M = 0, 0, 0
     mines, grid, player = 0, 0, 0
     first = True
+    replay = False
+    # groups, G = 0, 0
+    history = [] # E.g. ("s", (4, 3)) for sweeping at (4, 3)
 
-    def __init__(self, width, height, mine_count):
-        self.W, self.H, self.M = width, height, mine_count
-        self.screen = pg.display.set_mode([width * size, height * size])
+    ready_to_chord = False
 
-        self.reset()
+    def __init__(self, width=0, height=0, mine_count=0, mines=[]):
+        
+        
+
+        # self.reset()
         self.is_game_over = False
+        if len(mines) > 0:
+            replay = True
+            self.mines = mines
+            self.H, self.W = mines.shape
+            self.mine_count = sum(sum(mines))
+            self.screen = pg.display.set_mode([self.W * size, self.H * size])
+            self.restart(False)  # Soft reset
+        else:
+            self.W, self.H, self.M = width, height, mine_count
+            self.screen = pg.display.set_mode([width * size, height * size])
+            self.restart() 
 
-        # while True:
-        #     self.process_input()
-    
+        
     
     # ---------- Public --------------
     # history = []
     def left_click(self, point):
-        # Handles tuple or list or np.array
-        # @Returns player
-        # history.append(point)
-        point = tuple(point)
-        point_of_explosion = self.sweep(point)
+        point_of_explosion = self.sweep(tuple(point))
         if point_of_explosion:  # BOOM
             self.is_game_over = True
             self.game_over(point_of_explosion)
 
         else:
             if self.is_won():  # WIN
+                print("WIN")
                 self.game_over()
-            else:
-                self.draw()
         
-        return self.player
-
     def right_click(self, point):
-        # Handles tuple or list or np.array
         self.flag(tuple(point))
-        self.draw()
+    
+    def right_left_click(self, point):
+        point_of_explosion = self.chord(tuple(point))
+        if point_of_explosion:  # BOOM
+            self.is_game_over = True
+            self.game_over(point_of_explosion)
+        else:
+            if self.is_won():  # WIN
+                print("WIN")
+                self.game_over()
+        
     
     def reset(self):
-        # @Returns fresh player
         self.restart()
-        self.left_click(self.guess())  # Auto first move
-        # return self.player
+        # self.left_click(self.guess())  # Auto first move
 
     # ---------- Visualizing --------
     
-    # TODO Instead of filling with black, and drawing over, fill grey and add shadow and glare, then add thin darker grey grid lines
-    # TODO Redundant code. Refactor with helper draw_square(point)
-
     def draw(self):
         # Numbered white
         # Empty white
@@ -88,22 +101,20 @@ class MineSweeper():
         self.screen.fill(BLACK)
         for x in range(self.W):
             for y in range(self.H):
+                n = self.player[y, x]
+
                 # Draw square 
                 rect = pg.Rect(x*size, y*size, size-1, size-1)
-                pg.draw.rect(self.screen, GREY, rect, 0)
+                color = WHITE if n >= 0 else GREY
+                pg.draw.rect(self.screen, color, rect, 0)
 
-                # Draw number
-                n = self.player[y, x]
-                if n == 0:  # Empty
-                    pg.draw.rect(self.screen, WHITE, rect, 0)
-                elif n == -1:  # Flag
+                # Draw number or flag
+                if n == -1:  # Flag
                     xs, ys = x * size, y * size
                     points=[(xs + 10, ys + 4), (xs + 18, ys + 9), (xs + 10, ys + 14)]  # Flag
                     pg.draw.polygon(self.screen, colors[2], points)
                     pg.draw.line(self.screen, BLACK, (xs + 10, ys + 4), (xs + 10, ys + 20))  # Pole
-
                 elif n > 0:
-                    pg.draw.rect(self.screen, WHITE, rect, 0)
                     txt = font2.render(str(n), 1, colors[n-1])
                     self.screen.blit(txt, (8 + x * size, y * size))
         pg.display.flip()
@@ -111,6 +122,32 @@ class MineSweeper():
         # pg.display.update([pg.Rect(0, 0, self.W * size / 2, self.H * size), # Left side
         #                    pg.Rect(self.W * size / 2, 0, self.W * size / 2, self.H * size / 2)])  # Top right
         
+    def draw_cell(self, point):
+        # Draw and update screen at point
+        # Called from right click and when sweeping a number
+        y, x = point
+        xs, ys = x * size, y * size
+        
+        rect = pg.Rect(xs, ys, size-1, size-1)
+
+        n = self.player[point]
+        if n == -1:
+            pg.draw.rect(self.screen, GREY, rect, 0)
+            points=[(xs + 10, ys + 4), (xs + 18, ys + 9), (xs + 10, ys + 14)]  # Flag
+
+            pg.draw.polygon(self.screen, colors[2], points)
+            pg.draw.line(self.screen, BLACK, (xs + 10, ys + 4), (xs + 10, ys + 20))  # Pole
+        elif n == -2:
+            pg.draw.rect(self.screen, GREY, rect, 0)
+        else:
+            pg.draw.rect(self.screen, WHITE, rect, 0)
+            txt = font2.render(str(n), 1, colors[n-1])
+            self.screen.blit(txt, (8 + x * size, y * size))
+
+
+        pg.display.update(rect)        
+
+
 
     def game_over_txt(self):
         txt = font1.render("Game Over", 1, BLACK)
@@ -153,6 +190,7 @@ class MineSweeper():
 
                 # Draw flags on mine
                 if self.mines[y, x]:
+                    pg.draw.rect(self.screen, GREY, rect, 0)
                     points=[(xs + 10, ys + 4), (xs + 18, ys + 9), (xs + 10, ys + 14)]  # Flag
                     pg.draw.polygon(self.screen, colors[2], points)
                     pg.draw.line(self.screen, BLACK, (xs + 10, ys + 4), (xs + 10, ys + 20))  # Pole
@@ -161,8 +199,6 @@ class MineSweeper():
                 # Draw number
                 n = self.grid[y, x]
                 if n == 0: continue
-                rect = pg.Rect(xs, ys, size-1, size-1)
-                pg.draw.rect(self.screen, GREY, rect, 0)
                 txt = font2.render(str(n), 1, colors[n-1])
                 self.screen.blit(txt, (8 + x * size, y * size))
         pg.display.flip()
@@ -172,7 +208,7 @@ class MineSweeper():
 
     # ------------ Game logic -------------------
     def first_move(self, point):
-        
+        # Ensures first sweep is safe and touching is clear of mines TODO
         if self.mines[point] == 1:
             y, x = np.nonzero(self.mines == 0)
             y, x = y[0], x[0]
@@ -228,34 +264,29 @@ class MineSweeper():
 
     def reveal(self, point):
         # @Returns truth table of revealed area from point
-        # Assumed point is hidden
+        # Called when sweeping an empty square
         # Revealed area are connected hidden and edges
-
-        # Initilize groups before? - Yes, because grid is static throughout game
-        A = self.grid.copy()
-        A[A != 0] = 1    # Convert all to 1 except empty
-        A = 1 - A        # Flip to identify empties
-        A, n = label(A, np.ones((3, 3)))  # Label groups
-        # indices = np.indices(A.shape).T[:,:,[1, 0]]  # Create indices for extraction later
-        # indices = np.indices(A.shape).T  # Create indices for extraction later
-
         
+
+        A, n = label(self.grid == 0, np.ones((3, 3)))  # Label groups of empties
         
-        # Find the group, i, where point belongs (the connected hidden)
-        for i in range(1, n+1):
-            # if list(point) in indices[A == 1].tolist():  # 'x in X' only work for lists
+        # Find the group, i, where point belogs (the connected hidden)
+        for i in range(1, n+1): # List
+        # for i in range(1, self.G+1): # List
+            # if list(point) in np.argwhere(self.groups == i).tolist():  # My version
             if list(point) in np.argwhere(A == i).tolist():  # My version
                 break
         # print("GROUP", i)
 
         # Dilate this group once (the edge)
+        # A = self.groups.copy()
         A[A != i] = 0  # Erase all other groups
-        structure = np.ones((3, 3))
-        A = binary_dilation(A, structure)            # Dilate binary image and produce truth table
-        A = np.logical_and(A, 1 - self.mines)  # Keep mines hidden and empty hidden 
+        A = binary_dilation(A, np.ones((3, 3)))            # Dilate binary image and produce truth table
+        # A = np.logical_and(A, 1 - self.mines)              # Keep mines and empty hidden 
+        A[self.mines == 1] = False
 
-        # Return A and execute rest outside to avoid out of scope referencing of player and grid
-        np.copyto(self.player, self.grid, where=A)  # Copy over where appropiate
+        return A
+        
 
 
     def sweep(self, point: tuple):
@@ -271,26 +302,67 @@ class MineSweeper():
             self.first_move(point)
             self.first = False
         
+        self.history.append(("s", point))
         if self.player[point] == -1: return None  # Flagged can't be sweeped
         
         v = self.grid[point]
         if v == -1:
+            print(self.history)
             return point
         
         if v == 0:  # Picked empty
-            self.reveal(point)
-            # Actually do the update here instead of in reveal
+            revealed = self.reveal(point)
+            np.copyto(self.player, self.grid, where=revealed)  # Copy over where appropiate
+            self.draw()
         else:  # Picked number
             self.player[point] = v
+            self.draw_cell(point)
 
         return None
 
     def flag(self, point: tuple):
+        self.history.append(("f", point))
         if self.player[point] >= 0: return
         self.player[point] = -1 if self.player[point] != -1 else -2
+        self.draw_cell(tuple(point))
+    
+    def chord(self, point: tuple):
+        # Perform chording on satisfied numbered cell
+        # Reveals all touching cells
+        # TODO Keep list of all satisfied numbers?
+        self.history.append(("c", point))
+        if self.player[point] <= 0:
+            return None
 
+        revealed = []
+        flagged = 0
+        for y, x in zip(dir_y, dir_x):
+            yn, xn = point[0] + y, point[1] + x
+            if not(0 <= yn < self.H) or not(0 <= xn < self.W): # OOB
+                continue
+
+            v = self.player[yn, xn]
+            if v == -1:
+                flagged += 1
+            elif v == -2:
+                revealed.append((yn, xn))
+        
+        if flagged != self.player[point]:  # Return if unsatisfied
+            return None
+        
+        for point in revealed:
+            explosion = self.sweep(point)
+            if explosion: return explosion
 
     def game_over(self, point_of_explosion=None):
+        # print(self.history)
+        if not self.replay:
+            with open("last_mines.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.mines)
+            with open("last_moves.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.history)
         if point_of_explosion:
             self.show_mines(point_of_explosion)
             #self.game_over_txt()
@@ -299,7 +371,7 @@ class MineSweeper():
             #self.game_won_txt()
 
     def is_won(self):
-        # Determine if game won by all numbers (non-mines and non-blanks) uncovered
+        # Won if all non mines reveled to player
         A = self.player >= 0
         return np.all(A != self.mines)
 
@@ -319,15 +391,40 @@ class MineSweeper():
                 self.reset()
                 
             if event.key == pg.K_SPACE:
-                return "j"
+                return "sweep"
+
+            if event.key == pg.K_k:
+                pos = pg.mouse.get_pos()
+                point = np.array(pos)[::-1] // size  # Flip and map to grid
+                self.right_left_click(point)
+            
+            if event.key == pg.K_1:
+                return 1
+            
+            if event.key == pg.K_2:
+                return 2
         
+        # elif event.type == pg.MOUSEBUTTONDOWN and not self.is_game_over:
+        #     self.ready_to_chord = True
+        #     print("DOWN")
+
+
         elif event.type == pg.MOUSEBUTTONUP and not self.is_game_over:
+            # print("UP")
             pos = pg.mouse.get_pos()
             point = np.array(pos)[::-1] // size  # Flip and map to grid
+            
             if event.button == 1:
+                # print("LEFT CLICK")
                 self.left_click(point)
 
+            elif event.button == 2:
+                # print("CHORDING")
+                self.right_left_click(point)
+                # self.ready_to_chord = False
+
             elif event.button == 3:  # Right click to flag
+                # print("RIGHT CLICK")
                 self.right_click(point)
 
 
