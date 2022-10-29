@@ -37,13 +37,3 @@ def pool(X, dim = (2, 2), type="max", stride=1):
 # print(pool(X, (2, 2), "max", 2))
 Y = convolve(X, W, 1)
 print(Y.shape)
-
-
-# [[0 0 3 2 3]
-#  [0 2 1 3 2]
-#  [4 4 4 3 4]
-#  [2 3 3 2 1]
-#  [2 4 3 0 4]]
-# [[0 0 1]
-#  [1 1 1]
-#  [0 0 0]]

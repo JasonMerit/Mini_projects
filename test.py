@@ -1,8 +1,12 @@
-import numpy as np
-from scipy.ndimage import label, binary_dilation
 
-np.random.seed(0)
-W, H = 1, 1
-A = np.random.randint(0,10, (H+2, W+2))
-print(A)
-print(np.max(A))
+
+import numpy as np
+
+X = np.array([4, 1, 8, 2, 0, 5])
+import numpy as np
+
+m = np.array([[1, 2],
+       [3, 4]])
+r = np.zeros(m.shape)
+
+print(1 + True)
