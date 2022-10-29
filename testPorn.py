@@ -12,5 +12,6 @@ def do_stuff():
     while not a_list:
         print("kek")
 
-A = [[1, 2], [3, 4]]
-print(A[0:2])
+k = lambda x: (x - 1) % 4
+for i in range(4):
+    print(k(i))
