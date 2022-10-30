@@ -1,17 +1,23 @@
 import numpy as np
 np.random.seed(2)
 
-X = np.random.randint(0, 5, (28, 28))
-W = np.random.randint(0, 2, (5, 5))
+X = np.random.randint(0, 5, (12, 12))
+W = np.random.randint(0, 2, (3, 3))
+
+# dim_out = floor((dim_in+2*padding-(kernel_size - 1)-1)/stride+1)
+
 print(X)
 # print(W)
-def convolve(X, W, stride = 1, zero_padding = False):
+def convolve(X, W, padding = 0, stride = 1):
     # Only gives resonable results for proper dimensions
     M = len(W)  # Assumes square filter
+    dim_out = np.floor((len(X)+2*padding-(len(W) - 1)-1)/stride+1)  # From torch
+    print(dim_out)
     output_dim = np.array(X.shape) - np.array(W.shape) + [1, 1]
+    print(output_dim / stride)
     output_dim = np.ceil(output_dim / stride).astype(int)
-    if zero_padding:  # Pad zeros and extend output dimensions
-        X = np.pad(X, 1)
+    if padding:  # Pad zeros and extend output dimensions
+        X = np.pad(X, 2)
         output_dim += [2, 2]
     Y = np.zeros(output_dim)
     
@@ -35,5 +41,5 @@ def pool(X, dim = (2, 2), type="max", stride=1):
     return Y.astype(int)
 
 # print(pool(X, (2, 2), "max", 2))
-Y = convolve(X, W, 1)
+Y = convolve(X, W, 2)
 print(Y.shape)
