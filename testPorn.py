@@ -15,3 +15,4 @@ def do_stuff():
 k = lambda x: (x - 1) % 4
 for i in range(4):
     print(k(i))
+

@@ -1,12 +1,10 @@
-
-
 import numpy as np
 
-X = np.array([4, 1, 8, 2, 0, 5])
-import numpy as np
-
-m = np.array([[1, 2],
-       [3, 4]])
-r = np.zeros(m.shape)
-
-print(1 + True)
+A = [1, 2, 3, 4, 5, 6, 7]
+print(np.mean(A))
+m = 0
+for n, a in enumerate(A):
+	m += (a-m)/(n+1)
+	print(m)
+# 0 <- 1/1
+# 1 <- 1 + (2-1)/2

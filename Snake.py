@@ -237,7 +237,7 @@ class Snake():
 					if event.key in stepment:
 						obs = self.step(stepment.index(event.key))
 
-absolute = False
+absolute = True
 render = True
 seed = random.randrange(sys.maxsize)
 movement = [pg.K_RIGHT, pg.K_UP, pg.K_LEFT, pg.K_DOWN]
@@ -252,7 +252,7 @@ clock = pg.time.Clock()
 done = False
 r = 0
 while True:
-	clock.tick(10)
-	s, r, done = snake.step(snake.sample())
+	# clock.tick(10)
+	# s, r, done = snake.step(snake.sample())
 	snake.process_input()
-	print(s, r)
+	# print(s, r)
