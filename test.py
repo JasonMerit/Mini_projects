@@ -1,10 +1,8 @@
 import numpy as np
 
-A = [1, 2, 3, 4, 5, 6, 7]
-print(np.mean(A))
-m = 0
-for n, a in enumerate(A):
-	m += (a-m)/(n+1)
-	print(m)
-# 0 <- 1/1
-# 1 <- 1 + (2-1)/2
+A = [i for i in range(5, 15)]
+
+for i, a in enumerate(A):
+    print(i, a)
+    for other in A[i+1:]:
+        print(other)
