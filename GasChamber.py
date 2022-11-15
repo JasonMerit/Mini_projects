@@ -18,9 +18,9 @@ clock = pg.time.Clock()
 WHITE, GREY, BLACK = (255, 255, 255),  (200, 200, 200), (0, 0, 0)
 RED, GREEN, BLUE = (255, 0, 0), (0, 255, 0), (0, 0, 255)
 FPS = 60
-R = 50
+R = 100
 EXTERNAL_FORCE = 1.0
-BALL_COUNT = 50
+BALL_COUNT = 20
 
 # ---------- Variables --------
 running = True
@@ -121,6 +121,7 @@ class Chamber:
             n = (dx, dy)
             v = self.reflect(v, n)
             ball.rebound(v[0], v[1])
+            return magnitude(v)
             return np.dot(v, n) * 0.01
 
     def reflect(self, v, n):
