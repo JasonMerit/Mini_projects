@@ -299,32 +299,7 @@ class Snake():
 					if event.key in MOVE:
 						self._move(MOVE.index(event.key))
 				else:
-<<<<<<< Updated upstream
-					if event.key in stepment:
-						obs = self.step(stepment.index(event.key))
-
-absolute = True
-render = True
-seed = random.randrange(sys.maxsize)
-movement = [pg.K_RIGHT, pg.K_UP, pg.K_LEFT, pg.K_DOWN]
-stepment = [pg.K_UP, pg.K_LEFT, pg.K_RIGHT]
-snake = Snake((5, 5), seed=seed, rendering=render)
-
-# while True:
-	# snake.process_input()
-
-clock = pg.time.Clock()
-
-done = False
-r = 0
-while True:
-	# clock.tick(10)
-	# s, r, done = snake.step(snake.sample())
-	snake.process_input()
-	# print(s, r)
-=======
 					if event.key in STEP:
 						obs = self.step(STEP.index(event.key))
 
 
->>>>>>> Stashed changes

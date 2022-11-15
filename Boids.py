@@ -79,8 +79,13 @@ class Boids():
                 for boid2 in self.boids:
                     if boid != boid2:
                         if abs(boid.x - boid2.x) < 50 and abs(boid.y - boid2.y) < 50:
+<<<<<<< Updated upstream
                             boid.vx -= boid.x - boid2.x
                             boid.vy -= boid.y - boid2.y
+=======
+                            boid.vx += boid.x - boid2.x
+                            boid.vy += boid.y - boid2.y
+>>>>>>> Stashed changes
 
             cx /= len(self.boids); cy /= len(self.boids)
             axv /= len(self.boids); ayv /= len(self.boids)
