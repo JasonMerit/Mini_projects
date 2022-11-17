@@ -1,4 +1,5 @@
 """Implement vector math functions wih tuples."""
+from math import floor
 
 class V:
     """2D vector class."""
@@ -21,39 +22,73 @@ class V:
     def y(self, value):
         self._y = value
     
+    @property
+    def pos(self):
+        return self._x, self._y
+    
     def dot(self, other):
-        assert(isinstance(other, V)), "other must be a vector"
-        return self.x * other.x + self.y * other.y
+        # assert(isinstance(other, V)), "other must be a vector"
+        return self._x * other._x + self._y * other._y
+    
+    def dist(self, other):
+        return (self - other).norm()
+    
+    def dist_squared(self, other):
+        return (self - other).norm_squared()
     
     def norm(self):
         """Return the norm of the vector."""
         return self.norm_squared() ** 0.5
     
     def norm_squared(self):
-        return self.x ** 2 + self.y ** 2
+        return self._x ** 2 + self._y ** 2
+    
+    def unit(self):
+        """Return the unit vector of the vector."""
+        return self / self.norm()
     
     def __getitem__(self, index):
-        return (self.x, self.y)[index]
+        return (self._x, self._y)[index]
     
     def __repr__(self):
-        return f"V({self.x}, {self.y})"
+        return f"V({self._x}, {self._y})"
     
     def __add__(self, other):
-        return V((self.x + other.x, self.y + other.y))
+        return V((self._x + other._x, self._y + other._y))
     
     def __sub__(self, other):
-        return V((self.x - other.x, self.y - other.y))
+        return V((self._x - other._x, self._y - other._y))
     
     def __mul__(self, k):
-        assert(isinstance(k, (int, float))), "k must be a number"
-        return V((self.x * k, self.y * k))
+        # assert(isinstance(k, (int, float))), "k must be a number"
+        return V((self._x * k, self._y * k))
     
     def __rmul__(self, k):        
         return self * k
     
+    def __truediv__(self, k):
+        # assert(isinstance(k, (int, float))), "k must be a number"
+        return V((self._x / k, self._y / k))
+    
+    def __floordiv__(self, k):
+        # assert(isinstance(k, (int, float))), "k must be a number"
+        return V((int(self._x // k), int(self._y // k)))
+    
+    def __round__(self):
+        return V((round(self._x), round(self._y)))
+    
+    def __floor__(self):
+        return V((int(self._x), int(self._y)))
+    
+    def __abs__(self):
+        return V((abs(self._x), abs(self._y)))
+    
+    def __mod__(self, k):
+        # assert(isinstance(k, (int, float))), "k must be a number"
+        return V((self._x % k, self._y % k))
+    
     def __tuple__(self):
-        return (self.x, self.y)
-
+        return (self._x, self._y)
 
 if __name__ == "__main__":
     p1 = V((1.0, 2.))

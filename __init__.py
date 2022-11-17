@@ -1,0 +1,3 @@
+
+def kek():
+    print("kek")

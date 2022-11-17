@@ -1,66 +1,66 @@
-<<<<<<< Updated upstream
+from VectorMath import V
+import VectorMath
+import pygame as pg
+import math
+import random
 import numpy as np
-import psutil
+from random import randint
 
-print(psutil.sensors_temperatures())
-=======
-class Vec2D():
-    """Helper class for flipping coordinates and basic arithmetic.
-    pygame draws by v=(x, y) and numpy indexes by p=(y, x)."""
+class Tree():
 
-    def __init__(self, x, y=0):
-        if type(x) != tuple:
-            self.x, self.y = x, y
+    def __init__(self, root, left, right):
+        self.root = root
+        self.left = left
+        self.right = right
+    
+    def __repr__(self) -> str:
+        return str((self.left, self.root, self.right))
+    
+    def get_even(self):
+        if self.root == None:
+            return 
+
+        if isinstance(self.left, int):
+            if self.left % 2 == 0:
+                yield self.left
+                print("lol")
         else:
-            self.x, self.y = x[0], x[1]
+            yield from self.left.get_even()
 
-    @property
-    def v(self):
-        return self.x, self.y
+        if isinstance(self.right, int):
+            if self.right % 2 == 0:
+                yield self.right
+                print("lol")
+        else:
+            yield from self.right.get_even()
+    
+    def larger_than(self, n):
+        if isinstance(self.left, int):
+            if self.left > n:
+                yield self.left
+        else:
+            yield from self.left.larger_than(n)
 
-    @property
-    def p(self):
-        return self.y, self.x
+        if isinstance(self.right, int):
+            if self.right > n:
+                yield self.right
+        else:
+            yield from self.right.larger_than(n)
+        
 
-    @property
-    def sum(self):
-        return self.x + self.y
+A = np.random.randint(0, 10, 10)
+print(A)
+print(sorted(A))
+kek()
+quit()
 
-    def __repr__(self):
-        return f'Vec2D({self.x}, {self.y})'
+tree = Tree(0, Tree(None, 4, 5), Tree(6, 10, 8))
+for k in tree.get_even():
+    print(k)
 
-    def __add__(self, o):
-        return Vec2D(self.x + o.x, self.y + o.y)
+def lol(i):
+    return i + 1
 
-    def __sub__(self, o):
-        return Vec2D(self.x - o.x, self.y - o.y)
-
-    def __mul__(self, k):
-        return Vec2D(k * self.x, k * self.y)
-
-    def __rmul__(self, k):
-        return self.__mul__(k)
-
-    def __abs__(self):
-        return Vec2D(abs(self.x), abs(self.y))
-
-    def __eq__(self, o):
-        return self.x == o.x and self.y == o.y
-
-    def __iter__(self):
-        for i in [self.x, self.y]:
-            yield i
-
-    def __hash__(self):
-        return hash((self.x, self.y))
-
-vec = Vec2D(3, 4)
-
-print(vec.sum)
-print(vec.p)
-print(vec.v)
-print(vec.x)
-print(vec + vec)
-print(vec*2)
-print(2*vec)
->>>>>>> Stashed changes
+def kek():
+    for i in range(10):
+        yield lol(i)
