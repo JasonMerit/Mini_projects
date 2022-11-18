@@ -15,12 +15,13 @@ win = pg.display.set_mode((W, H))
 font = pg.font.SysFont('Calibri', 15)
 clock = pg.time.Clock()
 random.seed(11)
-RED, BLUE = (255,0,0), (0,0,255)
+WHITE, GREY, BLACK = (255, 255, 255), (128, 128, 128), (0, 0, 0)
+RED, GREEN, BLUE = (255, 0, 0), (0, 255, 0), (0, 0, 255)
 KEK = 0
-render = False
+render = True
 
 class Ball:
-    def __init__(self, pos, vel, acc, radius, color):
+    def __init__(self, pos: tuple, vel: tuple, acc: tuple, radius, color):
         self.p = V(pos)
         self.v = V(vel)
         self.a = V(acc)
@@ -53,7 +54,13 @@ class Ball:
     def bot(self):
         return self.p.y + self.r
     
-    def draw(self, win, color, n=-1):
+    @property
+    def rect(self):
+        return pg.Rect(self.left, self.top, self.r*2, self.r*2)
+    
+    def draw(self, win, color=None, n=-1):
+        if color is None:
+            color = self.color
         pg.draw.circle(win, color, tuple(self.p), self.r)
         # draw number
         if n != -1:
@@ -196,6 +203,33 @@ class BVH:
             self.ball = balls[0]
             return
         
+        # sort balls by axis
+        balls.sort(key=lambda ball: ball.p[axis])
+
+        # split balls into two groups
+        mid = len(balls) // 2
+        left, right = balls[mid-1], balls[mid]
+
+        # encompass each groups
+        A_rect = left.rect.unionall([ball.rect for ball in balls[:mid-1]])
+        B_rect = right.rect.unionall([ball.rect for ball in balls[mid+1:]])
+
+        if self.render:
+                pg.display.update()
+                wait()
+                pg.draw.rect(win, BLUE, A_rect, 2)
+                pg.draw.rect(win, BLUE, B_rect, 2)
+        
+        self.left = BVH(balls[:mid], self, A_rect, self.depth+1, self.render)
+        self.right = BVH(balls[mid:], self, B_rect, self.depth+1, self.render)
+        
+
+
+    def build_tree1(self, balls, axis):
+        if len(balls) == 1:
+            self.ball = balls[0]
+            return
+        
         balls.sort(key=lambda ball: ball.p[axis])
         
         mid = len(balls) // 2
@@ -205,47 +239,66 @@ class BVH:
         Ab1, Ab2 = balls[0], balls[mid-1]
         Bb1, Bb2 = balls[mid], balls[-1]
 
+        A_rect = Ab2.rect.unionall([ball.rect for ball in balls[:mid-1]])
+        B_rect = Bb1.rect.unionall([ball.rect for ball in balls[mid+1:]])
+
         # singular groups
         if Bb1 == Bb2:
-            Ax, Ay, Aw, Ah = Ab1.left, Ab1.top, Ab1.r * 2, Ab1.r * 2
-            Bx, By, Bw, Bh = Bb1.left, Bb1.top, Bb1.r * 2, Bb1.r * 2
+            self.left = BVH([Ab1], self, Ab1.rect, self.depth+1, self.render)
+            self.right = BVH([Bb1], self, Bb1.rect, self.depth+1, self.render)
+            if self.render:
+                pg.display.update()
+                wait()
+                pg.draw.rect(win, BLUE, Ab1.rect, 2)
+                pg.draw.rect(win, BLUE, Bb1.rect, 2)
+            return  
         # B contains two balls
-        elif Ab1 == Ab2:
-            Ax, Ay, Aw, Ah = Ab1.left, Ab1.top, Ab1.r * 2, Ab1.r * 2
+        if Ab1 == Ab2:
+            self.left = BVH([Ab1], self, Ab1.rect, self.depth+1, self.render)
             
-            if axis == 0:
-                Bx = Bb1.left
-                By = min(ball.top for ball in balls[mid:])
-                Bw = Bb2.right - Bx
-                Bh = max(ball.bot for ball in balls[mid:]) - By
-            else:
-                Bx = min(ball.left for ball in balls[mid:])
-                By = Bb1.top
-                Bw = max(ball.right for ball in balls[mid:]) - Bx
-                Bh = Bb2.bot - By
+            # if axis == 0:
+            #     Bx = Bb1.left
+            #     By = min(ball.top for ball in balls[mid:])
+            #     Bw = Bb2.right - Bx
+            #     Bh = max(ball.bot for ball in balls[mid:]) - By
+            # else:
+            #     Bx = min(ball.left for ball in balls[mid:])
+            #     By = Bb1.top
+            #     Bw = max(ball.right for ball in balls[mid:]) - Bx
+                # Bh = Bb2.bot - By
+            # right_rect = pg.Rect(Bx, By, Bw, Bh)
+            # self.right = BVH(balls[mid:], self, right_rect, self.depth+1, self.render)
+            right_rect = Bb1.rect.union(Bb2.rect)
+            self.right = BVH(balls[mid:], self, Bb1.rect.union(Bb2.rect), self.depth+1, self.render)
+            if self.render:
+                pg.display.update()
+                wait()
+                pg.draw.rect(win, BLUE, Ab1.rect, 2)
+                pg.draw.rect(win, BLUE, right_rect, 2)
+            return
         # determine rect dimensions
+    
+        if axis == 0:
+            Ax = Ab1.left
+            Ay = min(ball.top for ball in balls[:mid])
+            Aw = Ab2.right - Ax
+            Ah = max(ball.bot for ball in balls[:mid]) - Ay
+
+            Bx = Bb1.left
+            By = min(ball.top for ball in balls[mid:])
+            Bw = Bb2.right - Bx
+            Bh = max(ball.bot for ball in balls[mid:]) - By
         else:
-            if axis == 0:
-                Ax = Ab1.left
-                Ay = min(ball.top for ball in balls[:mid])
-                Aw = Ab2.right - Ax
-                Ah = max(ball.bot for ball in balls[:mid]) - Ay
+            Ax = min(ball.left for ball in balls[:mid])
+            Ay = Ab1.top
+            Aw = max(ball.right for ball in balls[:mid]) - Ax
+            Ah = Ab2.bot - Ay
 
-                Bx = Bb1.left
-                By = min(ball.top for ball in balls[mid:])
-                Bw = Bb2.right - Bx
-                Bh = max(ball.bot for ball in balls[mid:]) - By
-            else:
-                Ax = min(ball.left for ball in balls[:mid])
-                Ay = Ab1.top
-                Aw = max(ball.right for ball in balls[:mid]) - Ax
-                Ah = Ab2.bot - Ay
-
-                Bx = min(ball.left for ball in balls[mid:])
-                By = Bb1.top
-                Bw = max(ball.right for ball in balls[mid:]) - Bx
-                Bh = Bb2.bot - By
-        
+            Bx = min(ball.left for ball in balls[mid:])
+            By = Bb1.top
+            Bw = max(ball.right for ball in balls[mid:]) - Bx
+            Bh = Bb2.bot - By
+    
         left_rect = pg.Rect(Ax, Ay, Aw, Ah)
         right_rect = pg.Rect(Bx, By, Bw, Bh)
 
@@ -253,8 +306,8 @@ class BVH:
         if self.render:
             pg.display.update()
             wait()
-        pg.draw.rect(win, BLUE, left_rect, 2)
-        pg.draw.rect(win, BLUE, right_rect, 2)
+            pg.draw.rect(win, BLUE, left_rect, 2)
+            pg.draw.rect(win, BLUE, right_rect, 2)
 
         self.left = BVH(balls[:mid], self, left_rect, self.depth+1, self.render)
         self.right = BVH(balls[mid:], self, right_rect, self.depth+1, self.render)
@@ -378,7 +431,7 @@ def go():
                 return
 
 
-def test():
+def test_against_naive_collision_count():
     for seed in range(1000):
         random.seed(seed)
         balls = get_balls()
@@ -391,8 +444,35 @@ def test():
             return seed
     print("GREAT SUCCESS")
 
+def test():
+    # Place two balls close to each other near center
+    win.fill((0, 0, 0))
+    # random positions
+    pos_a = (random.randint(0, W), random.randint(0, H))
+    pos_b = (random.randint(0, W), random.randint(0, H))
+    pos_c = (random.randint(0, W), random.randint(0, H))
+
+    A = Ball(pos_a, (10, 0), (10, 0), 10, RED)
+    B = Ball(pos_b, (-10, 0), (10, 0), 10, BLUE)
+    C = Ball(pos_c, (0, 0), (10, 0), 10, GREEN)
+
+    A.draw(win)
+    B.draw(win)
+    C.draw(win)
+    
+    pg.draw.rect(win, WHITE, A.rect, 2)
+    pg.draw.rect(win, WHITE, B.rect, 2)
+    pg.draw.rect(win, WHITE, C.rect, 2)
+
+    # union of rects
+    rect = A.rect.unionall([B.rect, C.rect])
+    pg.draw.rect(win, WHITE, rect, 2)
+
+    pg.display.flip()
+
 
 pg.display.update()
+test()
 while True:
     for event in pg.event.get():
         if event.type == pg.QUIT:
@@ -405,7 +485,6 @@ while True:
             if event.key == pg.K_SPACE:
                 go()
             if event.key == pg.K_t:
-                print("kek")
                 test()
 
     

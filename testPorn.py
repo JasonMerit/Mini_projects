@@ -1,66 +1,65 @@
-from VectorMath import V
-import VectorMath
-import pygame as pg
-import math
-import random
-import numpy as np
-from random import randint
+import pygame as pg, pymunk as pm
 
-class Tree():
+pg.init()
+W, H = 800, 600
+screen = pg.display.set_mode((W, H))
+clock = pg.time.Clock()
+FPS = 60
+BLACK, GREY, WHITE = (0, 0, 0), (100, 100, 100), (255, 255, 255)
+SIZE = 30
 
-    def __init__(self, root, left, right):
-        self.root = root
-        self.left = left
-        self.right = right
+# create space
+space = pm.Space()
+space.gravity = 0, 500
+tetrimino_surf = pg.Surface((SIZE, SIZE))
+tetriminos = []
+
+def create_tetrimino(x, y):
+    """Create tetrimino."""
+    body = pm.Body(1, 100, body_type=pm.Body.DYNAMIC)
+    body.position = x, y
+    shape = pm.Poly.create_box(body, (SIZE, SIZE))  # For collision
+    space.add(body, shape)
+    return shape
+
+def draw_tetriminos(tetriminos):
+    """Draw tetrimino."""
+    for tetrimino in tetriminos:
+        x, y = int(tetrimino.body.position.x), int(tetrimino.body.position.y)
+        rect = tetrimino_surf.get_rect(center=(x, y))
+        screen.blit(tetrimino_surf, rect)
+
+def static_floor():
+    """Create static floor."""
+    body = pm.Body(body_type=pm.Body.STATIC)
+    body.position = W // 2, H-200
+    shape = pm.Segment(body, (-W // 2, 0), (W // 2, 0), 0)
+    space.add(body, shape)
+    return shape
+
+def draw_floor(floor):
+    """Draw floor."""
+    x, y = int(floor.body.position.x), int(floor.body.position.y)
+    pg.draw.line(screen, BLACK, (x - W // 2, y), (x + W // 2, y), 1)
     
-    def __repr__(self) -> str:
-        return str((self.left, self.root, self.right))
+tetriminos.append(create_tetrimino(100, 100))
+floor = static_floor()
+
+while True:
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
+            pg.quit()
+            quit()
+        elif event.type == pg.KEYDOWN:
+            if event.key == pg.K_ESCAPE:
+                pg.quit()
+                quit()
+            elif event.key == pg.K_SPACE:
+                tetriminos.append(create_tetrimino(100, 100))
     
-    def get_even(self):
-        if self.root == None:
-            return 
-
-        if isinstance(self.left, int):
-            if self.left % 2 == 0:
-                yield self.left
-                print("lol")
-        else:
-            yield from self.left.get_even()
-
-        if isinstance(self.right, int):
-            if self.right % 2 == 0:
-                yield self.right
-                print("lol")
-        else:
-            yield from self.right.get_even()
-    
-    def larger_than(self, n):
-        if isinstance(self.left, int):
-            if self.left > n:
-                yield self.left
-        else:
-            yield from self.left.larger_than(n)
-
-        if isinstance(self.right, int):
-            if self.right > n:
-                yield self.right
-        else:
-            yield from self.right.larger_than(n)
-        
-
-A = np.random.randint(0, 10, 10)
-print(A)
-print(sorted(A))
-kek()
-quit()
-
-tree = Tree(0, Tree(None, 4, 5), Tree(6, 10, 8))
-for k in tree.get_even():
-    print(k)
-
-def lol(i):
-    return i + 1
-
-def kek():
-    for i in range(10):
-        yield lol(i)
+    screen.fill(GREY)
+    draw_tetriminos(tetriminos)
+    draw_floor(floor)
+    space.step(0.02)
+    pg.display.update()
+    clock.tick(FPS)

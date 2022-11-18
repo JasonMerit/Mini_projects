@@ -4,20 +4,21 @@ import pygame as pg
 import random, math
 from VectorMath import V
 import time 
+from math import ceil, log
 
 # Settings
-FRAMES = 1000
-INIT_COUNT = 400
+FRAMES = 0#400
+INIT_COUNT = 40
 continuous = True      # Lerping ball position to actual position after colliding with wall
 elastic = True          # Moementum and energy conservation
 min_trans_dist = True   # Minimum translation distance to avoid sticking
-detection = 2           # 0: None, 1: Naive, 2: Sweep and Prune, 3: Uniform Grid Partition, 
-                        # 4: KD_Tree, 5: Bounding Volume Hierarchy
+detection = 2          # 0: None, 1: Naive, 2: Sweep and Prune, 3: Uniform Grid Partition, 
+                        # 4: KD_Tree, 5: Bounding Volume Hierarchy 3.72s
 
 # pygame screen and clock
 pg.init()
-# W, H = 800, 400
-W, H = 1200, 600
+W, H = 800, 400
+# W, H = 1200, 600
 screen = pg.display.set_mode((W, H))
 pg.display.set_caption("Collision")
 clock = pg.time.Clock()
@@ -32,9 +33,9 @@ K = FPS * 5  # Characteristic magnitude
 # Variables
 ACC = (0, 0)
 FRICTION = 0.99  # Energy loss upon collision
-T = 2  # KD Tree depth before terminating
+T = 4  # KD Tree depth before terminating
 seed = 3
-random.seed(None)  
+random.seed(3)  
 
 
 # Create the ball
@@ -76,6 +77,10 @@ class Ball:
     @property
     def bot(self):
         return self.p.y + self.r
+    
+    @property
+    def rect(self):
+        return pg.Rect(self.left, self.top, self.r * 2, self.r * 2)
     
     @property
     def pos(self):
@@ -210,10 +215,8 @@ class Box():
     """ Ball collision detection algorithms """
     def naive(self):
         """Check for ball collisions"""
-        for i in range(len(self.balls)):
-            a = self.balls[i]
-            for j in range(i+1, len(self.balls)):
-                b = self.balls[j]
+        for i, a in enumerate(self.balls):
+            for b in self.balls[i+1:]:
                 if self.ball_colliding(a, b):
                     self.ball_collision_response(a, b)
 
@@ -419,78 +422,55 @@ class BVH:
 
         self.build_tree(balls, depth % 2)
     
-    def build_tree(self, balls, axis):
+    def build_tree(self, balls, axis): #  57.11s 36.51s
         if len(balls) == 1:
             self.ball = balls[0]
             return
+        # if self.depth == T:
+        #     self.ball = "leaf"
+        # #     self.rect = self.balls[0].rect.unionall([ball.rect for ball in self.balls])
+        #     return
         
+        # sort balls by axis
         balls = sorted(balls, key=lambda ball: ball.p[axis])
+
+        # split balls into two groups
         mid = len(balls) // 2
+        left, right = balls[mid-1], balls[mid]
 
-        # encompass each groups with a single rectangle
-        # Check if either group is singular for easier rect calculation
-        Ab1, Ab2 = balls[0], balls[mid-1]
-        Bb1, Bb2 = balls[mid], balls[-1]
-
-        # singular groups
-        if Bb1 == Bb2:
-            Ax, Ay, Aw, Ah = Ab1.left, Ab1.top, Ab1.r * 2, Ab1.r * 2
-            Bx, By, Bw, Bh = Bb1.left, Bb1.top, Bb1.r * 2, Bb1.r * 2
-        # B contains two balls
-        elif Ab1 == Ab2:
-            Ax, Ay, Aw, Ah = Ab1.left, Ab1.top, Ab1.r * 2, Ab1.r * 2
-            
-            if axis == 0:
-                Bx = Bb1.left
-                By = min(ball.top for ball in balls[mid:])
-                Bw = Bb2.right - Bx
-                Bh = max(ball.bot for ball in balls[mid:]) - By
-            else:
-                Bx = min(ball.left for ball in balls[mid:])
-                By = Bb1.top
-                Bw = max(ball.right for ball in balls[mid:]) - Bx
-                Bh = Bb2.bot - By
-        # determine rect dimensions
-        else:
-            if axis == 0:
-                Ax = Ab1.left
-                Ay = min(ball.top for ball in balls[:mid])
-                Aw = Ab2.right - Ax
-                Ah = max(ball.bot for ball in balls[:mid]) - Ay
-
-                Bx = Bb1.left
-                By = min(ball.top for ball in balls[mid:])
-                Bw = Bb2.right - Bx
-                Bh = max(ball.bot for ball in balls[mid:]) - By
-            else:
-                Ax = min(ball.left for ball in balls[:mid])
-                Ay = Ab1.top
-                Aw = max(ball.right for ball in balls[:mid]) - Ax
-                Ah = Ab2.bot - Ay
-
-                Bx = min(ball.left for ball in balls[mid:])
-                By = Bb1.top
-                Bw = max(ball.right for ball in balls[mid:]) - Bx
-                Bh = Bb2.bot - By
+        # encompass each groups
+        A_rect = left.rect.unionall([ball.rect for ball in balls[:mid-1]])
+        B_rect = right.rect.unionall([ball.rect for ball in balls[mid+1:]])
         
-        left_rect = pg.Rect(Ax, Ay, Aw, Ah)
-        right_rect = pg.Rect(Bx, By, Bw, Bh)
+        self.left = BVH(balls[:mid], self, A_rect, self.depth+1)
+        self.right = BVH(balls[mid:], self, B_rect, self.depth+1)    
 
-        self.left = BVH(balls[:mid], self, left_rect, self.depth+1)
-        self.right = BVH(balls[mid:], self, right_rect, self.depth+1)
-  
     def get_collisions(self):
         yield from self.left.intersects_with(self.right)
+    
+    def naive(self):
+        """Check for ball collisions"""
+        for i, a in enumerate(self.balls):
+            for b in self.balls[i+1:]:
+                if a.collides_with(b):
+                    yield (a, b)
     
     # def bigger_than(self, rect: pg.Rect):
     #     return self.rect.width * self.rect.height > rect.width * rect.height
     
     def intersects_with(self, other: 'BVH'):
-        """Recursively call from get_collisions"""
+        """Recursively call initialized from get_collisions"""
+        # # Branch cut short
+        # if self.ball == "leaf":
+        #     yield from self.naive()
+        #     if other.ball == "leaf":
+        #         yield from other.naive()
+        #     return
+            
         # Check own children
-        if self.left:
+        if self.ball is None:
             yield from self.left.intersects_with(self.right)
-        if other.left:
+        if other.ball is None:
             yield from other.left.intersects_with(other.right)
 
         # Return if rects not intersecting
