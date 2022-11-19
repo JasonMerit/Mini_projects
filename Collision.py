@@ -7,8 +7,8 @@ import time
 from math import ceil, log
 
 # Settings
-FRAMES = 0#400
-INIT_COUNT = 40
+FRAMES = 120 # / 60 seconds
+INIT_COUNT = 200
 continuous = True      # Lerping ball position to actual position after colliding with wall
 elastic = True          # Moementum and energy conservation
 min_trans_dist = True   # Minimum translation distance to avoid sticking
@@ -16,11 +16,10 @@ detection = 2          # 0: None, 1: Naive, 2: Sweep and Prune, 3: Uniform Grid 
                         # 4: KD_Tree, 5: Bounding Volume Hierarchy 3.72s
 
 # pygame screen and clock
-pg.init()
-W, H = 800, 400
-# W, H = 1200, 600
-screen = pg.display.set_mode((W, H))
-pg.display.set_caption("Collision")
+# W, H = 800, 400
+# W, H = 1920, 1080
+W, H = 1200, 600
+
 clock = pg.time.Clock()
 
 # Constants
@@ -29,13 +28,13 @@ RAINBOW = [(255, 0, 0), (255, 127, 0), (255, 255, 0), (0, 255, 0), (0, 0, 255), 
 FPS = 60
 dt = 1 / FPS
 K = FPS * 5  # Characteristic magnitude
-
-# Variables
-ACC = (0, 0)
-FRICTION = 0.99  # Energy loss upon collision
+ACC = (0, 1000)
+VEL = 2
+FRICTION = 1  # Energy loss upon collision
 T = 4  # KD Tree depth before terminating
-seed = 3
-random.seed(3)  
+# seed = 3
+# random.seed(seed)  
+
 
 
 # Create the ball
@@ -189,11 +188,11 @@ class Box():
 
         for i in range(self.count):
             pos = Pos[i]
-            vel = random.uniform(-1, 1) * K / 4, random.uniform(-1, 1) * K / 4
+            vel = random.uniform(-VEL, VEL) * K, random.uniform(-VEL, VEL) * K
             r = random.randint(10, 20)
             self.balls.append(Ball(pos, vel, self.acc, r, random.choice(RAINBOW)))
     
-    def update(self):
+    def update(self, screen):
         # Update the balls
         for ball in self:
             ball.move()
@@ -344,8 +343,8 @@ class Box():
         b.v -= rab.unit() * j / b.m
         
         # Friction
-        a.v *= 0.99
-        b.v *= 0.99
+        a.v *= FRICTION
+        b.v *= FRICTION
         self.collision_displacement(a, b)
     
     def inelastic_collision(self, a, b):
@@ -501,12 +500,13 @@ class BVH:
 
 def compute_render(frames: int):
     """Pre-render the balls for the animation"""
-    print("Pre-rendering...")
+    print(f'Pre-rendering {frames} or ~ {frames/60}s ...')
     t0 = time.time()
+    log_interval = max(frames//10, 1000)
     box = Box(ACC, INIT_COUNT)
     attr = box.get_balls_attr()
     rendering = []
-    for _ in range(frames):
+    for i in range(1, frames+1):
         frame = []
         box.ball_collision_detection()
 
@@ -514,13 +514,37 @@ def compute_render(frames: int):
             ball.update()
             frame.append(ball.pos)
         rendering.append(frame)
+
+        if i % log_interval == 0:
+            # print progress in minutes if it takes more than 1 minute
+            t = time.time() - t0
+            if t > 60:
+                print(f"{t/60:.1f}m : {100*i/frames}%")
+            else:
+                print(f"{int(t)}s : {100*i/frames}%")
     
     print(f"Render time: {time.time() - t0:.2f}s")
     return rendering, attr
 
 def play_render(render, attr):
     """Play the pre-rendered animation"""
-    print("Playing...")
+
+    pg.init()
+    screen = pg.display.set_mode((W, H))
+    pg.display.set_caption("Collision")
+    clock = pg.time.Clock()
+
+    # white 'press any key' text at center
+    screen.fill(BLACK)
+    font = pg.font.SysFont("Arial", 20)
+    text = font.render("Press any key to start", True, WHITE)
+    text_rect = text.get_rect()
+    text_rect.center = (W//2, H//2)
+    screen.blit(text, text_rect)
+    pg.display.flip()
+    while pg.event.wait().type != pg.KEYDOWN:
+        pass
+
     t0 = time.time()
 
     for frame in render:
@@ -528,13 +552,13 @@ def play_render(render, attr):
         for pos, (r, c) in zip(frame, attr):
             pg.draw.circle(screen, c, pos, r)
         pg.display.flip()
-        process_events(pg.event.get())
+        process_events()
         clock.tick(FPS)
     print(f"Play time: {time.time() - t0:.2f}s")
     
 
-def process_events(events, box=None):
-    for event in events:
+def process_events(box=None):
+    for event in pg.event.get():
         if event.type == pg.QUIT:
             pg.quit()
             quit()
@@ -543,17 +567,14 @@ def process_events(events, box=None):
                 pg.quit()
                 quit()
             if event.key == pg.K_p:
-                # pause
                 while True:
-                    for event in pg.event.get():
-                        if event.type == pg.KEYDOWN:
-                            if event.key == pg.K_p:
-                                # unpause
-                                return
-                        elif event.type == pg.QUIT:
+                    event = pg.event.wait()
+                    if event.type == pg.KEYDOWN:
+                        if event.key == pg.K_p:
+                            break
+                        elif event.key == pg.K_ESCAPE:
                             pg.quit()
                             quit()
-            
             if box:
                 if event.key == pg.K_r:
                     box.reset()
@@ -567,10 +588,13 @@ def process_events(events, box=None):
 
 def main():
     box = Box(ACC, INIT_COUNT)
+    pg.init()
+    screen = pg.display.set_mode((W, H))
+    pg.display.set_caption("Collision")
     while True:
         clock.tick(FPS)
         process_events(pg.event.get(), box)
-        box.update()
+        box.update(screen)
 
 if __name__ == "__main__":
     if not FRAMES:

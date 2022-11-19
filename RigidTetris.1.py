@@ -1,17 +1,20 @@
 """Tetris but with rigid rects that rotate and move continuously."""
 
 import pygame as pg
+import numpy as np
 import random
-from math import cos, sin, pi, radians
+from math import cos, sin, radians
 from typing import List, Tuple
+from pygame import gfxdraw as gfx
 
 # Define some tetris colors 
 WHITE, GREY, BLACK = (255, 255, 255), (128, 128, 128), (0, 0, 0)
-BLUE, GREEN, YELLOW, ORANGE, RED = (0, 0, 255), (0, 255, 0), (255, 255, 0), (255, 128, 0), (255, 0, 0)
-COLORS = [BLUE, GREEN, YELLOW, ORANGE, RED]
+
+TURQUOISE, BLUE, ORANGE, YELLOW, GREEN, PURPLE, RED = (0, 255, 255), (0, 0, 255), (255, 165, 0), (255, 255, 0), (0, 255, 0), (165, 0, 165), (255, 0, 0)
+COLORS = [TURQUOISE, BLUE, ORANGE, YELLOW, GREEN, PURPLE, RED]
 
 # Define pygame objects
-W, H = 400, 600
+W, H = 400, 600 # (1920, 1080)
 SIZE = 40
 pg.init()
 screen = pg.display.set_mode((W, H))
@@ -209,6 +212,9 @@ class Block():
 
 
 class Tetromino():
+    """Tetromino of 4 blocks. Outer corners as properties for rendering."""
+
+
     def __init__(self, x, y, color, size):
         # pg.sprite.Sprite.__init__(self)
         # self.image = pg.Surface((size, size))
@@ -229,6 +235,14 @@ class Tetromino():
         self.blocks.append(Block(x-size, y - size, size, size))
         self.blocks.append(Block(x, y, size, size))
         self.blocks.append(Block(x, y - size, size, size))
+
+        # save corners for polygon drawing
+        self.corners = []
+        for block in self.blocks:
+            self.corners.append(block.a)
+            self.corners.append(block.b)
+            self.corners.append(block.c)
+            self.corners.append(block.d)
 
     @staticmethod
     def sample():
@@ -282,8 +296,60 @@ class Game:
         self.tetrominos.append(self.tetromino)
 
         # For testing
-        self.block = Block(W // 4, H // 2, SIZE, SIZE)
+        self.block = Block(W // 4, H // 3, SIZE, SIZE)
         # self.block.rotate(45)
+        self.rect = pg.Rect(W // 4, H // 2, SIZE, SIZE)
+        self.points = np.array([self.rect.topleft, self.rect.topright, self.rect.bottomright, self.rect.bottomleft])
+        self.points = self.points - self.rect.center
+        self.rot_speed = 15
+        self.rotation_matrix = np.array([[np.cos(np.radians(self.rot_speed)), -np.sin(np.radians(self.rot_speed))], 
+                                         [np.sin(np.radians(self.rot_speed)), np.cos(np.radians(self.rot_speed))]])
+        # print(pg.display.list_modes())
+        # self.I = [
+        #     Line(Vec(0, 0), Vec(4 * SIZE, 0)),
+        #     Line(Vec(4 * SIZE, SIZE), Vec(4 * SIZE, SIZE)),
+        #     Line(Vec(4 * SIZE, SIZE)), Vec(0, SIZE),
+        #     Line(Vec(0, SIZE), Vec(0, 0))
+        # ]
+        # https://static.wikia.nocookie.net/tetrisconcept/images/3/3d/SRS-pieces.png/revision/latest?cb=20060626173148
+        center = np.array([SIZE, SIZE]) + np.array([SIZE, SIZE]) // 2
+
+        self.I = np.array([[0, 0], [4, 0], [4, 1], [0, 1]]) * SIZE
+        self.I -= np.array([SIZE * 2, SIZE // 2]) # center
+        self.Ic = np.array([100, 100])
+        
+        self.J = np.array([[0, 0], [1, 0], [1, 1], [3, 1],
+                           [3, 2], [0, 2]]) * SIZE
+        self.J -= np.array([1, 1]) * SIZE + np.array([SIZE // 4, SIZE // 4])                                                      
+        self.Jc = np.array([300, 100])
+
+        self.L = np.array([[0, 1], [2, 1], [2, 0], 
+                           [3, 0], [3, 2], [0, 2]]) * SIZE
+        self.L -= np.array([2, 1]) * SIZE + np.array([-SIZE // 4, SIZE // 4])                           
+        self.Lc = np.array([100, 300])
+
+        self.O = np.array([[0, 0], [2 , 0], [2, 2], [0, 2]]) * SIZE 
+        self.O -= np.array([SIZE, SIZE]) # center
+        self.Oc = np.array([300, 300])
+        
+        self.S = np.array([[0, 1], [1, 1], [1, 0], [3, 0], [3, 1], 
+                           [2, 1], [2, 2], [0, 2]]) * SIZE
+        self.S -= np.array([1, 1]) * SIZE + np.array([SIZE // 2, 0]) # center
+        self.Sc = np.array([100, 500])
+
+        self.T = np.array([[0, 1], [1, 1], [1, 0], [2, 0], [2, 1], 
+                           [3, 1], [3, 2], [0, 2]]) * SIZE
+        self.T -= np.array([1, 1]) * SIZE + np.array([SIZE // 2, SIZE // 4]) # center
+        self.Tc = np.array([300, 500])
+
+        self.Z = np.array([[0, 0], [2, 0], [2, 1], [3, 1], [3, 2], 
+                           [1, 2], [1, 1], [0, 1]]) * SIZE
+        self.Z -= np.array([1, 1]) * SIZE + np.array([SIZE // 2, 0]) # center
+        self.Zc = np.array([200, 400])
+
+        self.tetrominos = [self.I, self.J, self.L, self.O, self.S, self.T, self.Z]
+        self.tetromino_centers = [self.Ic, self.Jc, self.Lc, self.Oc, self.Sc, self.Tc, self.Zc]
+        
 
     def reset(self):
         self.tetrominos.clear()
@@ -300,15 +366,15 @@ class Game:
 
     def update(self):
         pass
-        # if self.tetromino.rect.y + self.tetromino.size >= H:
-        #     self.tetromino.move(0, -SIZE)
+        # if self.tetromino.rect.y + self.tetromino. >= H:
+        #     self.tetromino.move(0, -)
         #     self.tetromino = Tetromino.sample()
         #     self.tetrominos.append(self.tetromino)
         # for tetromino in self.tetrominos:
         #     for block in tetromino.blocks:
         #         if block.rect.y + block.h >= H:
-        #             self.tetromino.move(0, -SIZE)
-        #             self.tetromino = Tetromino(0, 0, COLORS[random.randint(0, 4)], SIZE)
+        #             self.tetromino.move(0, -)
+        #             self.tetromino = Tetromino(0, 0, COLORS[random.randint(0, 4)], )
         #             self.tetrominos.append(self.tetromino)
     
     def __iter__(self):
@@ -344,11 +410,30 @@ class Game:
 
     def draw(self):
         screen.fill(BLACK)
-        for tetromino in self.tetrominos:
-            tetromino.draw(screen)
+        # for tetromino in self.tetrominos:
+        #     tetromino.draw(screen)
         
-        self.block.draw() # other
-        self.block.test(self.tetromino.blocks[0]) # this
+        # self.block.draw() # other
+        # pg.draw.rect(screen, RED, self.rect, 0) # rect
+        # self.block.test(self.tetromino.blocks[0]) # this
+        # self.points = self.rotation_matrix @ self.points
+
+        # Rotate points around their rect center
+        # self.points = self.points @ self.rotation_matrix
+        # self.points = self.points * 1.01
+        # gfx.aapolygon(screen, self.points + self.rect.center, RED) # polygon
+        # gfx.filled_polygon(screen, self.points + self.rect.center, RED) # polygon
+
+        
+
+        for i in range(len(COLORS)):
+            self.tetrominos[i] = self.tetrominos[i] @ self.rotation_matrix
+            gfx.aapolygon(screen, self.tetrominos[i] + self.tetromino_centers[i], COLORS[i]) # polygon
+            gfx.filled_polygon(screen, self.tetrominos[i] + self.tetromino_centers[i], COLORS[i]) # polygon
+            gfx.circle(screen, self.tetromino_centers[i][0], self.tetromino_centers[i][1], 10, WHITE) # circle
+            
+
+
         pg.display.flip()
     
 
