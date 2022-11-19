@@ -7,7 +7,7 @@ import time
 from math import ceil, log
 
 # Settings
-FRAMES = 120 # / 60 seconds
+FRAMES = 0 # / 60 seconds
 INIT_COUNT = 200
 continuous = True      # Lerping ball position to actual position after colliding with wall
 elastic = True          # Moementum and energy conservation
@@ -593,7 +593,7 @@ def main():
     pg.display.set_caption("Collision")
     while True:
         clock.tick(FPS)
-        process_events(pg.event.get(), box)
+        process_events(box)
         box.update(screen)
 
 if __name__ == "__main__":
