@@ -76,7 +76,7 @@ RED_ = (255, 0, 0)
 COLORS = [TURQUOISE, BLUE, ORANGE, YELLOW, GREEN, PURPLE, RED]
 
 # Define pygame objects
-SIZE = 80#120
+SIZE = 40#120
 AREA = 4 * SIZE ** 2
 W, H = SIZE * 10, SIZE * 15
 FPS = 60
@@ -855,9 +855,9 @@ class Game:
 
     def test_1_init(self):  # cutting
         global MOVE_SPEED, ROT_SPEED
-        MOVE_SPEED = 5
+        MOVE_SPEED = 1
         ROT_SPEED = 1
-        self.current = Tetromino(L, pos=(W // 2, H // 2 - 50), rot = 3 * 90)
+        self.current = Tetromino(T, pos=(W // 2, H // 2 - 50), rot = 3 * 90)
         self.f = self.fields[8]
         self.f.scale(2)
     
@@ -870,30 +870,69 @@ class Game:
         field_color = (255, 0, 0, 100)
         gfx.aapolygon(self.screen, self.f.corners, field_color)
         gfx.filled_polygon(self.screen, self.f.corners, field_color)
-        pg.draw.line(self.screen, GREEN, *self.current.shape.lines[0], 2)
+        # pg.draw.line(self.screen, GREEN, *self.current.shape.lines[0], 2)
 
         _, field_top, _, field_bot = self.f.bounds()
         top_line = [V2(W, field_top), V2(0, field_top)]
         left_vec = V2(-1, 0)
-        bot_line = [V2(W, field_bot), V2(0, field_bot)]
-        top_intersect, bot_intersect = V2(0, 0), V2(0, 0)
+        top_intersect = V2(0, 0)
         intersecting_lines = []
         pois = []
         lines = self.current.shape.lines
+
+        # Find all pois and associated lines
         for line in lines:
             top_intersect = seg_intersect(*line, *top_line)
             if top_intersect:
                 pois.append(top_intersect)
                 intersecting_lines.append(line)
-                if (line[1] - line[0]).cross(left_vec) > 0:
-                    break
-            # bot_intersect = seg_intersect(*line, *bot_line)
-            # if bot_intersect:
-            #     break
         
         if intersecting_lines == []:
             pg.display.flip()
             return
+
+        for poi in pois:
+            pg.draw.circle(self.screen, BLACK, poi, 5)
+        # for line in intersecting_lines:
+        #     pg.draw.line(self.screen, RED, *line, 2)
+
+        line = intersecting_lines[0]
+        start_indx = lines.index(line)
+        poi = pois[0]
+        inside = (line[1] - line[0]).cross(V2(-1, 0)) > 0
+        if inside:
+            pg.draw.line(self.screen, WHITE, line[1], poi, 2)
+        else:
+            pg.draw.line(self.screen, WHITE, line[0], poi, 2)
+        # self.draw_ui(start_indx, (20, 20))
+
+        i = (start_indx + 1) % len(lines)
+        j = 1 # index of pois
+        while i != start_indx:
+            line = lines[i]
+
+            if line in intersecting_lines:
+                i = (i + 1) % len(lines)
+                poi = pois[j]
+                j += 1
+                if inside:
+                    pg.draw.line(self.screen, WHITE, line[0], poi, 2)
+                else:
+                    pg.draw.line(self.screen, WHITE, line[1], poi, 2)
+                inside = not inside
+                continue
+            
+            if inside:
+                pg.draw.line(self.screen, WHITE, *line, 2)
+            
+            
+            i = (i + 1) % len(lines)
+        
+        print()
+        
+        
+        pg.display.flip()
+        return
 
         # Either first entree is ingoring, or we have two lines
         if len(intersecting_lines) == 1:

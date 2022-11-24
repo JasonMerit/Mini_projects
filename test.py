@@ -15,12 +15,16 @@ print(A)
 A = np.power([3, 4], 2)
 print(A)
 
-print(7 % 7)
 
 # remove middle two elements
 
 # replace middle two points
-
+max = 5
+start = 2
+i = start + 1
+while i != start:
+    print(i)
+    i = (i + 1) % max
 
 
 
