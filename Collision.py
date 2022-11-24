@@ -7,7 +7,7 @@ import time
 from math import ceil, log
 
 # Settings
-FRAMES = 0 # / 60 seconds
+FRAMES = 200 # / 60 seconds
 INIT_COUNT = 200
 continuous = True      # Lerping ball position to actual position after colliding with wall
 elastic = True          # Moementum and energy conservation
