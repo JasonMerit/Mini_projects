@@ -1,13 +1,9 @@
 import numpy as np
-from typing import List, Tuple
+import pygame as pg
+import time
+from random import randrange
 
-class kek():
-    def __init__(self):
-        k = 10
-    def fragments_into(self):
-        return [kek() for i in range(k)]
-
-ke = kek()
-A = [1, 3]
-A += ke.fragments_into()
+A = [0, 1, 2, 3, 4]
+for i, a in enumerate(A):
+    A[i] = a + 1
 print(A)
