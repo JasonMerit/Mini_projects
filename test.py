@@ -1,77 +1,38 @@
-from pygame import Vector2 as V2
-from random import randint
-import numpy as np
-import time
-from math import pow
+import pygame as pg
 
-start = time.time()
+# Initialize the game engine
+pg.init()
 
-A = np.arange(8).reshape((4,-1))
-print(A)
-# A[1:, :] = [0, 0]
-# A = np.delete(A, slice(1, 0), axis=0)
-# A = np.insert(A, 1, [3, 3], axis=0)
-# A[1] = [0, 0]
-A = np.power([3, 4], 2)
-print(A)
+# Set the width and height of the screen
+screen_width = 800
+screen_height = 600
+screen = pg.display.set_mode([screen_width, screen_height])
 
+# Set the background color
+bg_color = (255, 255, 255)
 
-# remove middle two elements
+# Define the vertices of the faces of the box
+# The order of the vertices is important!
+front_face = [(100, 100), (200, 100), (200, 200), (100, 200)]
+top_face = [(100, 100), (200, 100), (150, 50)]
+right_face = [(200, 100), (200, 200), (150, 150)]
+left_face = [(100, 100), (100, 200), (150, 150)]
+bottom_face = [(100, 200), (200, 200), (150, 150)]
 
-# replace middle two points
-max = 5
-start = 2
-i = start + 1
-while i != start:
-    print(i)
-    i = (i + 1) % max
+# Draw the faces of the box
+pg.draw.polygon(screen, (255, 0, 0), front_face)
+pg.draw.polygon(screen, (0, 255, 0), top_face)
+pg.draw.polygon(screen, (0, 0, 255), right_face)
+pg.draw.polygon(screen, (255, 255, 0), left_face)
+pg.draw.polygon(screen, (0, 255, 255), bottom_face)
 
+# Update the screen
+pg.display.flip()
 
-
-
-
-
-# collision reponse
-# ra = V2(3, 4)
-# rb = V2(5, 6)
-# va = V2(1, 1)
-# vb = V2(-1, 0.5)
-# wa = -5
-# wb = 3
-# nb = V2(1, 0.2).normalize()
-# Ia = Ib = 1
-# ma = mb = 1
-# print(f'va: {va}, vb: {vb}, wa: {wa}, wb: {wb}')
-# numer = -2 * (va.dot(nb) - vb.dot(nb) + wa * (ra.cross(nb)) - wb * (ra.cross(nb)))
-# denom = ma + mb + (Ia / ra.cross(nb) ** 2) + (Ib / rb.cross(nb) ** 2)
-# print(f'{numer}/{denom} = {numer / denom}')
-
-# J = numer / denom * nb
-# va_ = va + J / ma
-# vb_ = vb - J / mb
-# wa_ = wa + ra.cross(J) / Ia # or wa + J.cross(ra) / Ia
-# wb_ = wb - rb.cross(J) / Ib # or wb - J.cross(rb) / Ib - copilot
-
-# print(f'va_ = {va_}, vb_ = {vb_}, wa_ = {wa_}, wb_ = {wb_}')
-
-
-
-quit()
-
-L = [(0, 1), (2, 1), (2, 0), (3, 0), (3, 2), (0, 2)]
-Cx = 0
-Cy = 0
-A = 0
-for i in range(len(L)-1):
-    x1, x2 = L[i][0], L[i+1][0]
-    y1, y2 = L[i][1], L[i+1][1]
-    print(x1)
-
-    Cx += (x1 + x2) * (x1 * y2 - x2 * y1)
-    Cy += (y1 + y2) * (x1 * y2 - x2 * y1)
-    A += (x1 * y2 - x2 * y1)
-
-A = 1/2 * A
-centroid = V2(Cx, Cy) / (6 * A)
-print(A, centroid)
-print(3/4, 5/4)
+while True:
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
+            quit()
+        if event.type == pg.KEYDOWN:
+            if event.key == pg.K_ESCAPE:
+                quit()
