@@ -7,8 +7,8 @@ import time
 from math import ceil, log
 
 # Settings
-FRAMES = 200 # / 60 seconds
-INIT_COUNT = 200
+FRAMES = 0#200 # / 60 seconds
+INIT_COUNT = 100
 continuous = True      # Lerping ball position to actual position after colliding with wall
 elastic = True          # Moementum and energy conservation
 min_trans_dist = True   # Minimum translation distance to avoid sticking
@@ -24,7 +24,7 @@ clock = pg.time.Clock()
 
 # Constants
 WHITE, GREY, BLACK, RED, GREEN, BLUE, YELLOW = (255, 255, 255), (128, 128, 128), (0, 0, 0), (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)
-RAINBOW = [(255, 0, 0), (255, 127, 0), (255, 255, 0), (0, 255, 0), (0, 0, 255), (128, 0, 128), (148, 0, 211)]
+RAINBOW = [(255, 0, 0), (255, 127, 0), (0, 255, 0), (0, 0, 255), (128, 0, 128), (148, 0, 211)]
 FPS = 60
 dt = 1 / FPS
 K = FPS * 5  # Characteristic magnitude
@@ -45,6 +45,7 @@ class Ball:
         self.a = V(acc)
         self.r = radius
         self.color = color
+        self._tagged = False
 
         self.r2 = self.m  = self.r ** 2
         self.wall_collision = self.collide_wall_continuous if continuous else self.collide_wall_discrete
@@ -52,6 +53,15 @@ class Ball:
     
     def __repr__(self) -> str:
         return str(self.p)
+
+    @property
+    def tagged(self):
+        return self._tagged
+    
+    @tagged.setter
+    def tagged(self, value):
+        self._tagged = value
+        self.color = YELLOW if value else self.color
 
     @property
     def x(self):
@@ -84,6 +94,11 @@ class Ball:
     @property
     def pos(self):
         return self.p.pos
+    
+    @property
+    def speed(self):
+        # return magnitude of velocity
+        return self.v.mag
     
     def collides_with(self, other):
         return self.p.dist_squared(other.p) < (self.r + other.r) ** 2
@@ -191,6 +206,7 @@ class Box():
             vel = random.uniform(-VEL, VEL) * K, random.uniform(-VEL, VEL) * K
             r = random.randint(10, 20)
             self.balls.append(Ball(pos, vel, self.acc, r, random.choice(RAINBOW)))
+        self.balls[-1].tagged = True
     
     def update(self, screen):
         # Update the balls
@@ -231,6 +247,19 @@ class Box():
                     break
                 if self.ball_colliding(balls[i], balls[j]):
                     self.ball_collision_response(balls[i], balls[j])
+                    
+                    # if either ball is tagged, tag both
+                    if not balls[i].tagged and not balls[j].tagged:
+                        continue 
+                    
+                    if balls[i].tagged and balls[i].speed > balls[j].speed:
+                        balls[j].tagged = True
+                        continue
+                    
+                    if balls[j].tagged and balls[i].speed < balls[j].speed:
+                        balls[i].tagged = True
+
+
         
     def uniform_grid_partition(self):
         """Uniform Grid Partition collision detection algorithm"""

@@ -26,6 +26,10 @@ class V:
     def pos(self):
         return self._x, self._y
     
+    @property
+    def mag(self):
+        return self.norm()
+    
     def dot(self, other):
         # assert(isinstance(other, V)), "other must be a vector"
         return self._x * other._x + self._y * other._y
