@@ -4,12 +4,13 @@ import random
 from math import atan2
 
 """
-Assumptions:
-    - Polygon is simple
-    - Polygon is counter-clockwise (not enforced) (Clockwise with POLYGON following YT)
+ASSUMPTIONS:
+    - Polygon is simple (no self-intersections)
+    - Polygon is counter-clockwise (marked *C where this is assumed)    
 
 SOURCES:
     - Random simple polygon: https://observablehq.com/@tarte0/generate-random-simple-polygon
+    - More random random simple polygon: 
     - Ear-clipping: https://www.youtube.com/watch?v=QAdfkylpYwc&ab_channel=Two-BitCoding
     - Art gallery problem (nlogn): https://www.youtube.com/watch?v=pmVn5KylI1Q&ab_channel=AlgorithmsLab
     - Linear time algorithm Chazelle: linear-poly-tri.pdf under downloads
@@ -19,17 +20,8 @@ SOURCES:
 WHITE, BLACK, GREY = (200, 200, 200), (50, 50, 50), (128, 128, 128)
 RED, GREEN, BLUE = (200, 0, 0), (0, 200, 0), (0, 0, 200)
 YELLOW, PURPLE, CYAN = (200, 200, 0), (200, 0, 200), (0, 200, 200)
-POLYGON = np.array([[258, 182],
-                    [407, 307],
-                    [467, 198],
-                    [659, 355],
-                    [584, 520],
-                    [504, 289],
-                    [426, 513],
-                    [204, 367],
-                    [343, 342]])
-POLYGON = POLYGON[::-1]                
-                    
+POLYGON = [[343, 342], [204, 367], [426, 513], [504, 289], [584, 520], [659, 355], [467, 198], [407, 307], [258, 182]]
+
 class Display():
 
     W, H = 800, 600
@@ -43,12 +35,12 @@ class Display():
     def wipe(self):
         self.screen.fill(BLACK)
     
-    def draw_polygon(self, points, color=None, with_index=False):
+    def draw_polygon(self, points, color=None, label=False):
         if color is None:
             color = random.choice([RED, GREEN, BLUE])
         pg.draw.polygon(self.screen, color, points)
 
-        if with_index:# Draw indices of points
+        if label:# Draw indices of points
             for i, point in enumerate(points):
                 text = self.font.render(str(i), False, RED)
                 self.screen.blit(text, point)
@@ -136,7 +128,7 @@ def is_ear(polygon, i):
         if j == i-1 or j == i or j == (i+1)%N: # skip p1, p2, p3
             continue
         # check if triangle p1, p2, p3 contains polygon[j]
-        if det(p1, p2, polygon[j]) > 0 and det(p2, p3, polygon[j]) > 0 and det(p3, p1, polygon[j]) > 0:
+        if det(p1, p2, polygon[j]) < 0 and det(p2, p3, polygon[j]) < 0 and det(p3, p1, polygon[j]) < 0: # *C for < 0
             return False
     return True
 
@@ -145,10 +137,7 @@ def identify_vertices(polygon):
     N = len(polygon)
     for i in range(N):
         p1, p2, p3 = polygon[i-1], polygon[i], polygon[(i+1)%N]
-        # v1 = p2 - p1
-        # v2 = p3 - p2
-        # if np.linalg.det([v1, v2]) < 0:  # Clockwise
-        if det(p1, p2, p3) > 0:  # Counter-clockwise
+        if det(p1, p2, p3) > 0:  # *C
             reflex.append(i)
         else:
             convex.append(i)
@@ -165,59 +154,42 @@ def identify_vertices(polygon):
 
 def is_convex(polygon, i):
     p1, p2, p3 = polygon[i-1], polygon[i], polygon[(i+1)%len(polygon)]
-    # p1, p2, p3 = triangle
-    # v1 = p2 - p1
-    # v2 = p3 - p2
-    # return np.linalg.det([v1, v2]) > 0  # Clockwise
-    return det(p1, p2, p3) > 0  # Clockwise
+    return det(p1, p2, p3) < 0  # *C
 
-def ear_clipping(polygon, render=False):
+def ear_clipping(polygon: list):
     # Iterate over all vertices
     # Determine if vertex is convex and ear
     # If so, remove vertex and add triangle
     triangles = []
-    # vertex = polygon
-    # for i in range(N):
+    n = len(polygon)
     i = 0
-    polygon = np.array(polygon)
-    while len(polygon) > 3:
+    while n > 3:
         if is_convex(polygon, i) and is_ear(polygon, i):
-            print(i)
-            triangle = [polygon[i-1], polygon[i], polygon[(i+1)%N]]            
-            triangles.append(triangle)
-            polygon = np.delete(polygon, i, axis=0)  # Gross
-            # polygon.pop(i)
+            triangles.append([polygon[i-1], polygon[i], polygon[(i+1)%n]])
+            polygon.pop(i)
+            n = len(polygon)
+        i = (i+1)%n
 
-            if render:
-                display.draw_polygon(triangle)
-                clock.tick(FPS)
-            
-        i = (i+1)%len(polygon)
-    if render:
-        display.draw_polygon(polygon)
     triangles.append(polygon)
-
     return triangles
     
 
 def main():
     display.wipe()
     clock.tick(FPS)
-    
+
+    # 0) Generate random polygon    
     polygon = POLYGON
+    polygon = Polygon.random_simple_polygon(N)
+    display.draw_polygon(polygon, WHITE)
     
-    # Reverse order
-    # polygon = Polygon.random_simple_polygon(N)
-    triangles = []
-    # polygon = polygon[::-1]
-    
-    display.draw_polygon(polygon, WHITE, True)
 
     # 1) Identify vertices from start
-    convex, reflex, ears = identify_vertices(polygon)
+    # convex, reflex, ears = identify_vertices(polygon)
 
+    triangles = []
     # 2.1) Triangulate with ear clipping
-    # triangles = ear_clipping(polygon)
+    triangles = ear_clipping(polygon)
 
     # 2.2) Tringulate in log(n) time
 
@@ -230,35 +202,35 @@ def main():
         clock.tick(FPS)
     pg.display.update()
 
+def process_input():
+    global FPS
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
+            quit()
+
+        if event.type == pg.KEYDOWN:
+            if event.key == pg.K_ESCAPE:
+                quit()
+            if event.key == pg.K_SPACE:
+                main()
+            if event.key == pg.K_DOWN:
+                FPS = max(1, FPS-1)
+            elif event.key == pg.K_UP:
+                FPS += 1
+
+        
+        if event.type == pg.MOUSEBUTTONDOWN:
+            print(event.pos)
 
 if __name__ == "__main__":
-    random.seed(39442222189) # 3
+    random.seed(3) # 3
     display = Display()
     Polygon = Polygon()
     
     clock = pg.time.Clock()
-    FPS = 2
-
+    FPS = 3
     N = 10
-    ORIGIN = np.array([display.W/2, display.H/2])
     
-
-    main()
-    keks = []
     while True:
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                pg.quit()
-                quit()
-
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE:
-                    pg.quit()
-                    quit()
-                
-                if event.key == pg.K_SPACE:
-                    main()
-            
-            if event.type == pg.MOUSEBUTTONDOWN:
-                keks.append(list(event.pos))
-                print(np.array(keks))
+        main()
+        process_input()
