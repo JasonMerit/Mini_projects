@@ -7,25 +7,25 @@ from math import atan2
 FEATURES:
     - Random polygon generation (RPG) Growth and space partioning
     - Triangulation of simple polygons (ear-clipping)
-    - Three-coloring of simple polygons 
+    - Three-coloring of simple polygons
 
 CONCEPTS:
     - Convex vertex: Interior angle of polygon < 180 degrees
-    - Convex hull: The smallest convex region enclosing a specified group of points. 
+    - Convex hull: The smallest convex region enclosing a specified group of points.
 
 ASSUMPTIONS:
     - Polygon is simple (no self-intersections)
-    - Polygon is counter-clockwise (marked *C where this is assumed)    
+    - Polygon is counter-clockwise (marked *C where this is assumed)
 
 SOURCES:
     - Random simple polygon: https://observablehq.com/@tarte0/generate-random-simple-polygon
-    - More random random simple polygon: 
+    - More random random simple polygon:
     - Ear-clipping: https://www.youtube.com/watch?v=QAdfkylpYwc&ab_channel=Two-BitCoding
     - Art gallery problem (nlogn) and 3 coloring and y-monotone (sweepline algorithm): https://www.youtube.com/watch?v=pmVn5KylI1Q&ab_channel=AlgorithmsLab
     - Linear time algorithm Chazelle: linear-poly-tri.pdf under downloads
 
 OVER THE TOP IDEAS:
-    - Make sick animations that zooms in the convex hull when partitioning, where the line becomes the bottom of screen. 
+    - Make sick animations that zooms in the convex hull when partitioning, where the line becomes the bottom of screen.
 
 """
 
@@ -44,36 +44,42 @@ class Display():
     def __init__(self) -> None:
         pg.init()
         pg.display.set_caption("Polygon Triangulation - [0]")
-        self.screen = pg.display.set_mode((self.W, self.H))        
+        self.screen = pg.display.set_mode((self.W, self.H))
         pg.font.init()
         self.font = pg.font.SysFont('Comic Sans MS', 30)
-    
+        self.wipe()
+
+    def restart(self):
+        self.wipe()
+        self.frames = []
+        self.frame = -1
+
     def wipe(self):
         self.screen.fill(BLACK)
         self.update()
-    
+
     def next(self):
         if self.frame == len(self.frames)-1: return
         self.frame += 1
         self.screen.blit(self.frames[self.frame], (0, 0))
         self.update(False)
-    
+
     def back(self):
         if self.frame == 0: return
         self.frame -= 1
         self.screen.blit(self.frames[self.frame], (0, 0))
         self.update(False)
-    
+
     def first(self):
         self.frame = 0
         self.screen.blit(self.frames[self.frame], (0, 0))
         self.update(False)
-    
+
     def last(self):
         self.frame = len(self.frames)-1
         self.screen.blit(self.frames[self.frame], (0, 0))
         self.update(False)
-    
+
     def update(self, new_frame=True):
         pg.display.update()
         if new_frame:
@@ -82,7 +88,7 @@ class Display():
             step()
         pg.display.set_caption(f"Polygon Triangulation - [{self.frame}]")
 
-    def draw_polygon(self, points, color=None, label=False):
+    def draw_polygon(self, points, color=None, label=False, update=True):
         if color is None:
             color = random.choice([RED, GREEN, BLUE])
         pg.draw.polygon(self.screen, color, points)
@@ -91,21 +97,21 @@ class Display():
             for i, point in enumerate(points):
                 text = self.font.render(str(i), False, RED)
                 self.screen.blit(text, point)
-        self.update()
-    
-    def draw_line(self, p1, p2, color=RED, width=3, head=False):
+        if update: self.update()
+
+    def draw_line(self, p1, p2, color=RED, width=3, head=False, update=True):
         pg.draw.line(self.screen, color, p1, p2, width)
-        
+
         if head:
             angle = atan2(p1[1] - p2[1], p1[0] - p2[0])
             k = width * 5
             pg.draw.polygon(self.screen, color, ((p2[0] + k * np.cos(angle - np.pi / 6), p2[1] + k * np.sin(angle - np.pi / 6)),
                                                 (p2[0] + k * np.cos(angle + np.pi / 6), p2[1] + k * np.sin(angle + np.pi / 6)),
                                                 p2))
-                                            
-        self.update()
-    
-    def draw_points(self, points, color=None, radius=5, label=False):
+
+        if update: self.update()
+
+    def draw_points(self, points, color=None, radius=5, label=False, update=True):
         if color is None:
             color = random_color()
         for i, point in enumerate(points):
@@ -113,92 +119,82 @@ class Display():
             if label:
                 text = self.font.render(str(i), False, color)
                 self.screen.blit(text, point)
-        self.update()
-    
-    def draw_path(self, points, color=RED):
+        if update: self.update()
+
+    def draw_path(self, points, color=RED, update=True):
         for i in range(len(points) - 1):
             self.draw_line(points[i], points[i + 1], color=color, width=2, head=True)
-        self.update()
-    
-    def draw_text(self, text, pos, color=RED):
+        if update: self.update()
+
+    def draw_text(self, text, pos, color=RED, update=True):
         text = self.font.render(text, False, color)
         self.screen.blit(text, pos)
-        self.update()
+        if update: self.update()
 
 class Polygon():
 
     def create_polygon(self, N, algorithm=2):
         """0: Random until true, 1: Angle sorting, 2: Space partitioning"""
-        return [self.random_polygon, self.random_simple_polygon, self.space_partitioning][algorithm](N)        
+        return [self.random_polygon, self.random_simple_polygon, self.random_partition][algorithm](N)
 
     def is_left(self, a, b, p):  # Or determinant of [a, b, p]
         """Return True if p is left of the line a -> b"""
         return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) < 0
-    
+
     def sample_line_point(self, a, b):
         """Return a random point on the line a -> b"""
         display.draw_line(a, b, GREEN, head=True)
         k = random.random()
         return (a[0] + k * (b[0] - a[0]), a[1] + k * (b[1] - a[1]))
 
-    def partition(self, points, was_left=True):
+    def partition(self, points: list, line, was_left=True):
         """
+        @param points: List of points to partition
+        @param line: Line from PRIOR partition 
+
         Partition points into two sets.
-        The line partition is defined by tail -> head, where tail is sampled from the 
-        prior line partition (first and last points) and head = s'
+        The line partition is defined by tail -> head, where tail is sampled from the
+        prior line partition (first and last points) and head is sampled from the remaining points.
         While partitioning head is removed and added once returning as left + [head] + right.
         Note that tail is not an actual point in the polygon, but a point on the line partition, so is not included in return.
         Note again that tail is needed in the next partition, so must be included in the start and end of left and right respectively.
         How will the distinction be made when removing? A was_left flag?
-        Given the flag, [head] is removed from either end accordingly. 
+        Given the flag, [head] is removed from either end accordingly.
         It will be tricky to ensure consistent ordering of points in the polygon.
         """
-        
-        if len(points) <= 4:
+        if len(points) <= 2:
             return points
-            display.draw_points(points, label=True)
-        # display.draw_points(points, RED)
-        # 1) Pick random point
-        head = random.choice(points[1:-1])
 
-        # 2) Pick random point on line and connect to sp
-        tail = self.sample_line_point(points[0], points[-1])
-        # display.draw_line(tail, head, RED, head = True)
+        # Sample line partition
+        tail = self.sample_line_point(*line)
+        head = points.pop(random.randrange(len(points)))
+        display.draw_line(tail, head, RED, head=True)
 
-        # 3) Partition points into two sets divided by the line sp -> sl
+        # Partition points
         subsets = {1: [], 0: []}
         [subsets[self.is_left(tail, head, p)].append(p) for p in points]
         left, right = subsets.values()
-        # left.append(head)
-        # display.draw_path(left, CYAN)
-        # display.draw_points(left, BLUE)
-        # display.draw_path(left, color=GREEN)
-        # display.draw_path(right, color=BLUE)
-        # display.draw_path(right, YELLOW)
 
-        # 4) Recursively partition the two subsets
-        return self.partition(left) + self.partition(right)
+        return self.partition(left, (tail, head)) + [head] + self.partition(right, (head, tail))
 
-    def space_partitioning(self, N, min_x=50, max_x=750, min_y=50, max_y=550):
-        points = [(random.randint(min_x, max_x), random.randint(min_y, max_y)) for _ in range(N)]
+    def space_partitioning(self, points):        
         display.draw_points(points, WHITE, label=True)
 
-        # pick two random unique elements
-        tail, head = random.sample(points, 2)
-        display.draw_line(tail, head, WHITE, head=True)
-
+        # pick two random unique elements and remove from points
+        tail, head = [points.pop(random.randrange(len(points))) for _ in range(2)]
+        display.draw_line(tail, head, GREEN, head=True)
+        
         # Partition the remaining points into two sets divided by the line tail -> head
         subsets = {1: [], 0: []}
         [subsets[self.is_left(tail, head, p)].append(p) for p in points]
         left, right = subsets.values()
-        left.append(head)
-        left.insert(0, tail)
-        # display.draw_path(left)
-        # return []
-        # display.draw_points(right)
-        return list(set(self.partition(left) + self.partition(right, False)))
+
+        return [tail] + self.partition(left, (tail, head)) + [head] + self.partition(right, (head, tail))
 
 
+    def random_partition(self, N=3, min_x=50, max_x=750, min_y=50, max_y=550):
+        points = [(random.randint(min_x, max_x), random.randint(min_y, max_y)) for _ in range(N)]
+        return self.space_partitioning(points)
 
     # Get the angle of the vector p to origin
     def get_angle(self, p): return atan2(p[1], p[0])
@@ -211,10 +207,10 @@ class Polygon():
         points = [(p[0] - mean_point[0], p[1] - mean_point[1]) for p in points]
         points = sorted(points, key=self.get_angle)
         points = [(p[0] + mean_point[0], p[1] + mean_point[1]) for p in points]
-        
+
         # assert self.is_simple(points), "Polygon is not simple"
         return points[::-1]  # reverse to get counter-clockwise
-        
+
     def random_polygon(self, N=3, min_x=50, max_x=750, min_y=50, max_y=550):
         points = [(random.randint(min_x, max_x), random.randint(min_y, max_y)) for _ in range(N)]
 
@@ -226,10 +222,10 @@ class Polygon():
         if not self.is_counter_clockwise(points):
             points = points[::-1]
         return np.array(points)
-    
+
     def is_counter_clockwise(self, points):
         return True
-    
+
     def is_simple(self, points):
         # Check if the polygon is simple (no self-intersections)
         N = len(points)
@@ -276,7 +272,7 @@ def identify_vertices(polygon):
             reflex.append(i)
         else:
             convex.append(i)
-    
+
     ears = [ear for ear in convex if is_ear(polygon, ear)]
 
     x = 10
@@ -307,21 +303,19 @@ def ear_clipping(polygon: list):
 
     triangles.append(polygon)
     return triangles
-    
+
 
 def main():
-    display.wipe()
-
-    # 0) Generate random polygon    
+    # 0) Generate random polygon
     polygon = POLYGON
-    polygon = Polygon.create_polygon(8, 1)
+    polygon = Polygon.create_polygon(N, 2)
     # print(polygon)
     # print(list(set(polygon)))
     # display.draw_path(polygon, YELLOW)
     # display.draw_points(polygon, WHITE, label=True)
     display.draw_polygon(polygon, CYAN)
-    pg.display.update()
-    # return
+    # pg.display.update()
+    return
     # 1) Identify vertices from start
     identify_vertices(polygon)
 
@@ -345,7 +339,7 @@ def update_fps(delta):
 
 def step():
     process_input()
-    clock.tick(FPS)
+    Clock.tick(FPS)
 
 def pause():
     while True:
@@ -358,8 +352,12 @@ def pause():
             if event.key == pg.K_p:
                 return
 
+def restart():
+    random.seed(SEED)
+    display.restart()
+    main()
+
 def process_input():
-    global FPS
     for event in pg.event.get():
         if event.type == pg.QUIT:
             quit()
@@ -367,35 +365,38 @@ def process_input():
         if event.type == pg.KEYDOWN:
             if event.key == pg.K_ESCAPE:
                 quit()
-            if event.key == pg.K_p:
+            if event.key == pg.K_r:
+                restart()
+            elif event.key == pg.K_p:
                 pause()
-            if event.key == pg.K_SPACE:
+            elif event.key == pg.K_SPACE:
+                display.wipe()
                 main()
-            if event.key == pg.K_DOWN:
-                if FPS < 2: return
-                update_fps(-1)
+            elif event.key == pg.K_DOWN:
+                if FPS > 1: update_fps(-1)
             elif event.key == pg.K_UP:
                 update_fps(1)
-            
+
             # Frame navigation
-            if event.key == pg.K_LEFT:
+            elif event.key == pg.K_LEFT:
                 display.first() if pg.key.get_mods() & pg.KMOD_SHIFT else display.back()
             elif event.key == pg.K_RIGHT:
                 display.last() if pg.key.get_mods() & pg.KMOD_SHIFT else display.next()
 
-        
-        if event.type == pg.MOUSEBUTTONDOWN:
+
+        elif event.type == pg.MOUSEBUTTONDOWN:
             print(event.pos)
 
 if __name__ == "__main__":
-    random.seed(1435235) # 3
-    FPS = 5
-    N = 10
+    SEED = 1435235
+    random.seed(SEED) # 3
+    FPS = 54
+    N = 20
+    Clock = pg.time.Clock()
     display = Display()
     Polygon = Polygon()
-    
-    clock = pg.time.Clock()
-    
+
+
     main()
     while True:
         process_input()
