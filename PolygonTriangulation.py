@@ -85,7 +85,7 @@ class Display():
         if new_frame:
             self.frames.append(self.screen.copy())
             self.frame += 1
-            step()
+            Clock.tick(FPS)
         pg.display.set_caption(f"Polygon Triangulation - [{self.frame}]")
 
     def draw_polygon(self, points, color=None, label=False, update=True):
@@ -143,54 +143,38 @@ class Polygon():
 
     def sample_line_point(self, a, b):
         """Return a random point on the line a -> b"""
-        display.draw_line(a, b, GREEN, head=True)
+        # display.draw_line(a, b, GREEN, head=True)
         k = random.random()
         return (a[0] + k * (b[0] - a[0]), a[1] + k * (b[1] - a[1]))
+    
+    def space_partitioning(self, points: list):        
+        # pick two random unique elements and remove from points
+        tail, head = [points.pop(random.randrange(len(points))) for _ in range(2)]
+        
+        # Partition the remaining points into two sets divided by the line tail -> head
+        left, right = [], []
+        [left.append(p) if self.is_left(tail, head, p) else right.append(p) for p in points]
 
-    def partition(self, points: list, line, was_left=True):
+        return self.partition(left, (tail, head)) + [head] + self.partition(right, (head, tail)) + [tail]
+    
+    def partition(self, points: list, line):
         """
         @param points: List of points to partition
         @param line: Line from PRIOR partition 
-
-        Partition points into two sets.
-        The line partition is defined by tail -> head, where tail is sampled from the
-        prior line partition (first and last points) and head is sampled from the remaining points.
-        While partitioning head is removed and added once returning as left + [head] + right.
-        Note that tail is not an actual point in the polygon, but a point on the line partition, so is not included in return.
-        Note again that tail is needed in the next partition, so must be included in the start and end of left and right respectively.
-        How will the distinction be made when removing? A was_left flag?
-        Given the flag, [head] is removed from either end accordingly.
-        It will be tricky to ensure consistent ordering of points in the polygon.
+        @return: List of points in order of partition
         """
-        if len(points) <= 2:
+        if len(points) < 2:
             return points
 
         # Sample line partition
         tail = self.sample_line_point(*line)
         head = points.pop(random.randrange(len(points)))
-        display.draw_line(tail, head, RED, head=True)
 
         # Partition points
-        subsets = {1: [], 0: []}
-        [subsets[self.is_left(tail, head, p)].append(p) for p in points]
-        left, right = subsets.values()
+        left, right = [], []
+        [left.append(p) if self.is_left(tail, head, p) else right.append(p) for p in points]
 
-        return self.partition(left, (tail, head)) + [head] + self.partition(right, (head, tail))
-
-    def space_partitioning(self, points):        
-        display.draw_points(points, WHITE, label=True)
-
-        # pick two random unique elements and remove from points
-        tail, head = [points.pop(random.randrange(len(points))) for _ in range(2)]
-        display.draw_line(tail, head, GREEN, head=True)
-        
-        # Partition the remaining points into two sets divided by the line tail -> head
-        subsets = {1: [], 0: []}
-        [subsets[self.is_left(tail, head, p)].append(p) for p in points]
-        left, right = subsets.values()
-
-        return [tail] + self.partition(left, (tail, head)) + [head] + self.partition(right, (head, tail))
-
+        return self.partition(left, (tail, head)) + [head] + self.partition(right, (tail, head))
 
     def random_partition(self, N=3, min_x=50, max_x=750, min_y=50, max_y=550):
         points = [(random.randint(min_x, max_x), random.randint(min_y, max_y)) for _ in range(N)]
@@ -309,11 +293,7 @@ def main():
     # 0) Generate random polygon
     polygon = POLYGON
     polygon = Polygon.create_polygon(N, 2)
-    # print(polygon)
-    # print(list(set(polygon)))
-    # display.draw_path(polygon, YELLOW)
-    # display.draw_points(polygon, WHITE, label=True)
-    display.draw_polygon(polygon, CYAN)
+    display.draw_polygon(polygon, WHITE)
     # pg.display.update()
     return
     # 1) Identify vertices from start
@@ -337,9 +317,9 @@ def update_fps(delta):
     global FPS
     FPS += delta
 
-def step():
-    process_input()
-    Clock.tick(FPS)
+# def step():
+#     process_input()
+    # Clock.tick(FPS)
 
 def pause():
     while True:
@@ -380,12 +360,20 @@ def process_input():
             # Frame navigation
             elif event.key == pg.K_LEFT:
                 display.first() if pg.key.get_mods() & pg.KMOD_SHIFT else display.back()
+                return
             elif event.key == pg.K_RIGHT:
                 display.last() if pg.key.get_mods() & pg.KMOD_SHIFT else display.next()
+                return
 
 
         elif event.type == pg.MOUSEBUTTONDOWN:
             print(event.pos)
+    keys = pg.key.get_pressed()
+    # Frame navigation
+    if keys[pg.K_LEFT]:
+        display.back()
+    elif keys[pg.K_RIGHT]:
+        display.next()
 
 if __name__ == "__main__":
     SEED = 1435235
@@ -400,3 +388,4 @@ if __name__ == "__main__":
     main()
     while True:
         process_input()
+        Clock.tick(5)
