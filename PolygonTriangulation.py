@@ -143,21 +143,30 @@ class Polygon():
 
     def sample_line_point(self, a, b):
         """Return a random point on the line a -> b"""
-        # display.draw_line(a, b, GREEN, head=True)
+        display.draw_line(a, b, GREEN, head=True)
         k = random.random()
         return (a[0] + k * (b[0] - a[0]), a[1] + k * (b[1] - a[1]))
     
-    def space_partitioning(self, points: list):        
+    def space_partitioning(self, points: list):   
+        """Must include line in partition, I think."""     
         # pick two random unique elements and remove from points
+        display.draw_points(points, WHITE)
         tail, head = [points.pop(random.randrange(len(points))) for _ in range(2)]
-        
+        display.draw_path([tail, head], RED)
+
         # Partition the remaining points into two sets divided by the line tail -> head
         left, right = [], []
         [left.append(p) if self.is_left(tail, head, p) else right.append(p) for p in points]
 
+        left = self.partition(left, (tail, head)) + [head]
+        right = self.partition(right, (tail, head)) + [tail]
+        # display.draw_path(left, GREEN)
+        # display.draw_path(right, GREEN)
+
+        return left + right
         return self.partition(left, (tail, head)) + [head] + self.partition(right, (head, tail)) + [tail]
     
-    def partition(self, points: list, line):
+    def partition(self, points: list, line, was_left=True):
         """
         @param points: List of points to partition
         @param line: Line from PRIOR partition 
@@ -165,10 +174,13 @@ class Polygon():
         """
         if len(points) < 2:
             return points
+        display.draw_points(points, CYAN)
+        display.draw_points(points, WHITE, update=False)
 
         # Sample line partition
         tail = self.sample_line_point(*line)
         head = points.pop(random.randrange(len(points)))
+        display.draw_line(tail, head, RED)
 
         # Partition points
         left, right = [], []
@@ -293,9 +305,12 @@ def main():
     # 0) Generate random polygon
     polygon = POLYGON
     polygon = Polygon.create_polygon(N, 2)
+    # display.draw_path(polygon, BLUE)
+    # display.draw_path([polygon[-1], polygon[0]], BLUE)
+    # display.first()
     display.draw_polygon(polygon, WHITE)
-    # pg.display.update()
     return
+
     # 1) Identify vertices from start
     identify_vertices(polygon)
 
@@ -338,6 +353,7 @@ def restart():
     main()
 
 def process_input():
+    global SEED
     for event in pg.event.get():
         if event.type == pg.QUIT:
             quit()
@@ -351,6 +367,9 @@ def process_input():
                 pause()
             elif event.key == pg.K_SPACE:
                 display.wipe()
+                SEED += 1
+                random.seed(SEED)
+                print("SEED:", SEED)
                 main()
             elif event.key == pg.K_DOWN:
                 if FPS > 1: update_fps(-1)
@@ -376,7 +395,7 @@ def process_input():
         display.next()
 
 if __name__ == "__main__":
-    SEED = 1435235
+    SEED = 13 # 2
     random.seed(SEED) # 3
     FPS = 54
     N = 20
