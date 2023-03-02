@@ -140,9 +140,6 @@ class Display():
     # screen = pg.display.set_mode([screen_size, screen_size])
     screen = pg.Surface([303, 650])
 
-    def reset(self):
-        pass
-    
     def render(self, board, piece, pieces_placed):
         # Clear the screen
         self.screen.fill(self.black)
@@ -178,7 +175,8 @@ class Display():
         
         # Draw score
         score_label = STAT_FONT.render(str(pieces_placed), 1, (255, 255, 255))
-        self.screen.blit(score_label, (130, 610))
+        self.screen.blit(score_label, (6, -6))
+        # self.screen.blit(score_label, (130, 610))
 
         return self.screen
         
@@ -777,60 +775,122 @@ class Tetris():
         return features
 
 class Agent():
-    W = np.array([-12.63, 6.6, -9.22, -19.77, -13.08, -10.49, -1.61, -24.04])
-
+    # W = np.array([-12.63, 6.6, -9.22, -19.77, -13.08, -10.49, -1.61, -24.04])   # Why doesn't this work? It shares acrros instances
     def __init__(self, env: Tetris, scale: float = 0.0):
         self.env = env
 
         # add noise to weights
-        self.W += np.random.normal(0, scale, self.W.shape)
+        self.W = np.array([-12.63, 6.6, -9.22, -19.77, -13.08, -10.49, -1.61, -24.04]) 
+        r = np.random.normal(0, scale, self.W.shape)
+        self.W += r
 
     def step(self):
+        """Return True if game is done"""
         states = self.env.get_final_states()
-        features = env.get_evaluations(states)
+        features = self.env.get_evaluations(states)
         outputs = [np.dot(input, self.W) for input in features]
 
         # Go to best scored state
         best_state = states[outputs.index(max(outputs))]
-        done = env.place_state(best_state) 
+        done = self.env.place_state(best_state) 
         return done
 
+def draw_controls():
+    color = (200, 200, 200)
+    x = 800
+
+    restart_label = STAT_FONT.render("[R] - Restart", True, color)
+    SCREEN.blit(restart_label, (x, 100))
+
+    quit_label = STAT_FONT.render("[ESC] - Quit", True, color)
+    SCREEN.blit(quit_label, (x, 150))
+
+    graphics_label = STAT_FONT.render("[D] - Toggle graphics", True, color)
+    SCREEN.blit(graphics_label, (x, 200))
+
+    pause_label = STAT_FONT.render("[P] - Pause", True, color)
+    SCREEN.blit(pause_label, (x, 250))
+
+    fps_up_label = STAT_FONT.render("[KEY UP] - FPS++", True, color)
+    SCREEN.blit(fps_up_label, (x, 300))
+
+    fps_down_label = STAT_FONT.render("[KEY DOWN] - FPS--", True, color)
+    SCREEN.blit(fps_down_label, (x, 350))
+
+
+def change_FPS(k):
+    global FPS
+    FPS += k
+    # pg.display.set_caption(f"Tetris - FPS: {FPS}")
+    # draw FPS bottom right
+    FPS_SCREEN.fill(BLACK)
+    fps_label = STAT_FONT.render(f"FPS: {FPS}", True, (200, 200, 200))
+    FPS_SCREEN.blit(fps_label, (0, 0))# 1200, 760
+    SCREEN.blit(FPS_SCREEN, (800, 400))
+    pg.display.update()
 
 def process_events():
-    global FPS
     for event in pg.event.get():
         if event.type == pg.QUIT:
             quit()
         if event.type == pg.KEYDOWN:
             if event.key == pg.K_ESCAPE:
                 quit()
-            if event.key in [pg.K_RIGHT, pg.K_d]:
-                return "right"
-            if event.key in [pg.K_LEFT, pg.K_a]:
-                return "left"
-            if event.key in [pg.K_UP, pg.K_w]:
-                return "up"
-            if event.key in [pg.K_DOWN, pg.K_s]:
-                return "drop"
-            if event.key == pg.K_q:
-                return "lotate"
-            elif event.key == pg.K_e:
-                return "rotate"
-            elif event.key == pg.K_SPACE:
-                return "slam"
-            elif event.key == pg.K_o:
+            # if event.key in [pg.K_RIGHT, pg.K_d]:
+            #     return "right"
+            # if event.key in [pg.K_LEFT, pg.K_a]:
+            #     return "left"
+            # if event.key in [pg.K_UP, pg.K_w]:
+            #     return "up"
+            # if event.key in [pg.K_DOWN, pg.K_s]:
+            #     return "drop"
+            # if event.key == pg.K_q:
+            #     return "lotate"
+            # elif event.key == pg.K_e:
+            #     return "rotate"
+            # elif event.key == pg.K_SPACE:
+            #     return "slam"
+            elif event.key == pg.K_d:
                 global RENDER
                 RENDER = not RENDER
-            elif event.key == pg.K_2:
-                FPS += 1
-            elif event.key == pg.K_1:
-                FPS -= 1
-            # elif event.key == pg.K_LSHIFT:
-            #     return "shift"
+            if event.key == pg.K_DOWN:
+                if FPS == 1: return
+                change_FPS(-1)
+            elif event.key == pg.K_UP:
+                change_FPS(1)
             elif event.key == pg.K_r:
-                env.reset()
+                return reset(N)
             elif event.key == pg.K_p:
                 pause()
+
+def loose_snooze():
+    restart_label = STAT_FONT.render("[R] - Restart", True, (60, 60, 255))
+    SCREEN.blit(restart_label, (800, 100))
+    pg.display.update()
+    while True:
+        event = pg.event.wait()
+        if event.type == pg.QUIT:
+            quit()
+        if event.type == pg.KEYDOWN:
+            if event.key == pg.K_ESCAPE:
+                quit()
+            if event.key == pg.K_r:
+                restart_label = STAT_FONT.render("[R] - Restart", True, (200, 200, 200))
+                SCREEN.blit(restart_label, (800, 100))
+                return
+            
+                
+
+def reset(n):
+    agents, anchors, envs = [], [], []
+    for i in range(n):
+        env = Tetris(False, Display())
+        env.reset()
+        agents.append(Agent(env, i*2))
+        anchors.append(50 + 400 * i)
+        envs.append(env)
+    return agents, anchors, envs
+    
 
 def pause():
     while True:
@@ -848,61 +908,54 @@ if __name__ == '__main__':
 
     pg.init()
     pg.font.init()
-    pg.display.set_caption('Tetris')
     SCREEN = pg.display.set_mode([1200, 760])
+    FPS_SCREEN = pg.Surface([200, 50])
     BLACK = (34, 34, 34)
     SCREEN.fill(BLACK)
     TXT_FONT = pg.font.SysFont("comicsans", 20)
     STAT_FONT = pg.font.SysFont("comicsans", 35)
     CELL_SIZE = 30
     CELL_SIZE_2 = 3 * CELL_SIZE
-    N = 1
+    
+    
+    N = 2
+
+    draw_controls()
 
     clock = pg.time.Clock() 
-    Range = range(N)
-    agents = []
-    anchors = []
-    envs = []
-    for i in Range:
-        env = Tetris(False, Display())
-        env.reset()
-        agents.append(Agent(env, 0))
-        anchors.append(50 + 400 * i)
-        envs.append(env)
 
     # time related stuff
-    FPS = 40
+    FPS = 30
+    change_FPS(0)
     RENDER = True
-    # time_screen = pg.Surface((200, 50))
-    # t0 = pg.time.get_ticks()
+    AUTO_RESET = False
+
+    agents, anchors, envs = reset(N)
 
     while True:
 
-        process_events()
-        # if not action:
-        #     action = "drop"
-        i = 0
-        for _ in Range:
-            if agents[i].step():
-                pass
-            #     # remove agent from list
-            #     agents.pop(i)
-            #     i -= 1
+        if input := process_events():
+            agents, anchors, envs = input
 
-            # if env.step(action):
-            #     pause()
+        if len(agents) == 0:
+            if not AUTO_RESET:
+                loose_snooze()
+            agents, anchors, envs = reset(N)   
+
+        for i, agent in enumerate(agents):
+            done = agent.step()
+
             if RENDER:
                 SCREEN.blit(envs[i].render(), (anchors[i], CELL_SIZE_2))
                 pg.display.update()
+            
+            if done:
+                agents.pop(i)
+                envs.pop(i)
+                anchors.pop(i)
+                i -= 1
             i += 1
         
-        # draw time
-        # time_screen.fill(BLACK)
-        # text = TXT_FONT.render("Play time: " + str(round((pg.time.get_ticks() - t0) / 1000, 2)), 1, (255, 255, 255))
-        # time_screen.blit(text, (10, 10))
-        # SCREEN.blit(time_screen, (0, 0))
-
-        # update SCREEN
-        # pg.display.update()
-        clock.tick(FPS)
+        if RENDER:
+            clock.tick(FPS)
         
