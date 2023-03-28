@@ -89,6 +89,7 @@ class Display():
         pg.display.set_caption(f"Polygon Triangulation - [{self.frame}]")
 
     def draw_polygon(self, points, color=None, label=False, update=True):
+        if len(points) < 3: return
         if color is None:
             color = random.choice([RED, GREEN, BLUE])
         pg.draw.polygon(self.screen, color, points)
@@ -158,11 +159,11 @@ class Polygon():
         left, right = [], []
         [left.append(p) if self.is_left(tail, head, p) else right.append(p) for p in points]
 
-        left = self.partition(left, (tail, head)) + [head]
-        right = self.partition(right, (tail, head)) + [tail]
-        # display.draw_path(left, GREEN)
-        # display.draw_path(right, GREEN)
-
+        left = self.partition(left, (tail, head))# + [head]
+        right = self.partition(right, (head, tail))# + [tail]
+        display.draw_path(left, GREEN)
+        display.draw_path(right, GREEN)
+        return []
         return left + right
         return self.partition(left, (tail, head)) + [head] + self.partition(right, (head, tail)) + [tail]
     
@@ -179,12 +180,14 @@ class Polygon():
 
         # Sample line partition
         tail = self.sample_line_point(*line)
-        head = points.pop(random.randrange(len(points)))
+        head = points.pop(random.randrange(len(points)))  # s'
         display.draw_line(tail, head, RED)
 
         # Partition points
         left, right = [], []
         [left.append(p) if self.is_left(tail, head, p) else right.append(p) for p in points]
+
+        
 
         return self.partition(left, (tail, head)) + [head] + self.partition(right, (tail, head))
 
@@ -305,10 +308,12 @@ def main():
     # 0) Generate random polygon
     polygon = POLYGON
     polygon = Polygon.create_polygon(N, 2)
-    # display.draw_path(polygon, BLUE)
+    
     # display.draw_path([polygon[-1], polygon[0]], BLUE)
     # display.first()
     display.draw_polygon(polygon, WHITE)
+    display.draw_path(polygon, BLUE)
+    display.draw_points(polygon, RED, label=True)
     return
 
     # 1) Identify vertices from start
@@ -395,7 +400,7 @@ def process_input():
         display.next()
 
 if __name__ == "__main__":
-    SEED = 13 # 2
+    SEED = 2#13 # 2
     random.seed(SEED) # 3
     FPS = 54
     N = 20
