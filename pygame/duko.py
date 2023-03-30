@@ -62,12 +62,17 @@ class Display():
         cell_rect = (0, 0, self.size - 2, self.size - 2)
         w = self.size - 10
         h = self.size // 12
-        shade_rect = (self.size // 2 - w // 2, self.size - h - 5, w, h)
+        shade_horiz = (self.size // 2 - w // 2, self.size - h - 5, w, h)
+        shade_verti = (h - 5, self.size // 2 - w // 2, h, w)
+
         for i in range(3):
             cell = pg.Surface(size, pg.SRCALPHA)
             pg.draw.rect(cell, self.COLORS[i], cell_rect, border_radius=3)
+            
+            # Shades
             if i > 0:
-                pg.draw.rect(cell, self.SHADES[i], shade_rect, border_radius=3)
+                pg.draw.rect(cell, self.SHADES[i], shade_horiz)
+                pg.draw.rect(cell, self.SHADES[i], shade_verti)
             cells.append(cell)
 
         return cursor, cells
