@@ -1,77 +1,63 @@
-import math
-import random
-from random import randint
+import pygame
 
-w, h = 100, 7
-xmin, xmax = 0, w-1
-
-random.seed(1)
-
-
-def rand_cell():
-    x = randint(xmin, xmax)
-    return x
-
-
-X = 20
-print(f"bomb: {X}")
-warmer = True
-same = False
-was_outside = False
-
-last = 2  
-positions = [last]
-
-cut = math.ceil((xmax + xmin) / 2)
-leapping_right = last < cut
-
-
-for i in range(10 ):
-
-    x = xmax - last if leapping_right else xmin + xmax - last
-    if x < 0:
-        print("OUTSIDE")
-        print(f"{last} -> {xmax}\n")
-        last = xmax
-        # last = xmax
-        continue
-    if x == last: # special case
-        x -= 1
-    if x == X:
-        print("BOMB FOUND")
-        quit()
-    
-    last_dst = abs(last - X)
-    dst = abs(x - X)
-    warmer = last_dst > dst
-    same = last_dst == dst
-
-    if same:
-        print("SAME")
-        print(last, x)
-    
-    cut = math.ceil((xmax + xmin) / 2)
-    leapping_right = last < cut
-    if warmer:
-        if leapping_right:
-            xmin = cut
+_circle_cache = {}
+def _circlepoints(r):
+    r = int(round(r))
+    if r in _circle_cache:
+        return _circle_cache[r]
+    x, y, e = r, 0, 1 - r
+    _circle_cache[r] = points = []
+    while x >= y:
+        points.append((x, y))
+        y += 1
+        if e < 0:
+            e += 2 * y - 1
         else:
-            xmax = cut
-    else:
-        if leapping_right:
-            xmax = cut
-        else:
-            xmin = cut
-    direction = f"{last} -> {x}" if leapping_right else f"{x} <- {last}"
-    print(direction)
-    print(f"WARMER: {warmer}")
-    print(f"[{xmin}, {xmax}]")
-    print()
+            x -= 1
+            e += 2 * (y - x) - 1
+    points += [(y, x) for x, y in points if x > y]
+    points += [(-x, y) for x, y in points if x]
+    points += [(x, -y) for x, y in points if y]
+    points.sort()
+    return points
 
-    positions.append(x)
-    last = x
-    leapping_right = last < cut
+def render(text, font, gfcolor=pygame.Color('dodgerblue'), ocolor=(255, 255, 255), opx=2):
+    textsurface = font.render(text, True, gfcolor).convert_alpha()
+    w = textsurface.get_width() + 2 * opx
+    h = font.get_height()
 
-print(positions)
+    osurf = pygame.Surface((w, h + 2 * opx)).convert_alpha()
+    osurf.fill((0, 0, 0, 0))
 
+    surf = osurf.copy()
 
+    osurf.blit(font.render(text, True, ocolor).convert_alpha(), (0, 0))
+
+    # for dx, dy in _circlepoints(opx):
+    #     surf.blit(osurf, (dx + opx, dy + opx))
+
+    surf.blit(textsurface, (opx, opx))
+    return surf
+
+def main():
+    pygame.init()
+
+    font = pygame.font.SysFont(None, 64)
+
+    screen = pygame.display.set_mode((350, 100))
+    clock = pygame.time.Clock()
+
+    while True:
+        events = pygame.event.get()
+        for e in events:
+            if e.type == pygame.QUIT:
+                return
+        screen.fill((30, 30, 30))
+
+        screen.blit(render('Hello World', font), (20, 20))
+
+        pygame.display.update()
+        clock.tick(60)
+
+if __name__ == '__main__':
+    main()
