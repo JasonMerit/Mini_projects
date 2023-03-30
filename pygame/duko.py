@@ -146,13 +146,16 @@ class Doku():
         goal = dim // 2 + dim  # Used to check if puzzle is complete
         self.goal = np.ones(self.dim, dtype=np.int8) * goal
 
-        self.board_init = np.array([[0 for _ in range(dim)] for _ in range(dim)], dtype=np.int8)
+        # self.board_init = np.array([[0 for _ in range(dim)] for _ in range(dim)], dtype=np.int8)
+        self.board_init = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 2, 0], [0, 1, 0, 0]], dtype=np.int8)
+        self.fixed = list(zip(self.board_init[0], self.board_init[1]))
+
         self.board = self.board_init.copy()
         self.display = Display(self.board) if render else None
             
     def reset(self):
         """Reset board and cursor to initial state"""
-        self.board = self.board_init
+        self.board = self.board_init.copy()
         self.pos = [0, 0]
         if self.display:
             self.display.reset(self.board, self.pos)
@@ -178,6 +181,9 @@ class Doku():
                 if event.key == pg.K_ESCAPE:
                     quit()
                 
+                if event.key == pg.K_r:
+                    self.reset()
+
                 if event.key == pg.K_UP:
                     self.move("up")
                 elif event.key == pg.K_DOWN:
@@ -301,6 +307,13 @@ class EnvironmentDoku(Env):
             
             self.game.process_input()
             time.sleep(self.DT)
+    
+    def random_action(self):
+        x, y, a = self.action_space.sample()
+        while (y, x) in self.game.fixed:
+            x, y, a = self.action_space.sample()
+        
+        return np.array([x, y, a])
 
     def is_done(self):
         return self.game.is_complete()
@@ -313,7 +326,8 @@ class Agent():
         self.env = env
 
     def policy(self, state):
-        return self.env.action_space.sample()
+        """Returns a random action"""
+        return self.env.random_action()
     
     def episode(self):
         total_steps = 0
