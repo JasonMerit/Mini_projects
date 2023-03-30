@@ -6,7 +6,6 @@ TODO:
 - Press 1-2-3-4-5 for choosing dimension size (4, 6, 8, 10, 12)
 - Fix cell offset
 - Add outline to font
-- Only draw things once using surface, then call blit on screens
 """
 
 import pygame as pg
@@ -21,6 +20,7 @@ class Display():
     RED, GREEN, BLUE = (200, 20, 20), (100, 200, 20), (255, 100, 0)
     ORANGE, YELLOW, PURPLE = (0, 156, 255), (255, 255, 0), (128, 0, 255)
     COLORS = [GREY, ORANGE, BLUE]
+    SHADE = (0, 0, 0, 100)
 
     pg.font.init()
     # bold calibri font
@@ -55,22 +55,38 @@ class Display():
         gfxdraw.filled_circle(cursor, *offset, self.cursor_size, self.WHITE)
 
         cells = []
+        SHADE = (0, 0, 0, 255)
+        TRANS = (0, 0, 0, 0)
+        w = self.size * 3 // 4
+        x = self.size // 2 - w // 2
+        h = self.size // 8
+        y = self.size * 4 // 5
         for i in range(3):
             cell = pg.Surface(size, pg.SRCALPHA)
             pg.draw.rect(cell, self.COLORS[i], (0, 0, self.size - 2, self.size - 2), border_radius=3)
+            # pg.draw.rect(cell, SHADE, (x, y, w, h), border_radius=3)
+            # draw circular cut out on shade
+            # gfxdraw.aacircle(cell, offset[0], y, self.size // 4, TRANS)
+            # gfxdraw.filled_circle(cell, offset[0], y, self.size // 4, TRANS)
             cells.append(cell)
 
         return cursor, cells
 
     def reset(self, board, pos):
         self._draw_board(board)
-        self._draw_cursor(np.array(pos))
+        self.update_cell(np.array(pos))
+        self.draw_cursor(np.array(pos))
     
-    def update_cell(self, pos, color):
+    def update_cell(self, pos, color=None):
         """Update cell at pos with color"""
         pos = np.array(pos)
-        self._draw_cell(pos, color)
-        self._draw_cursor(pos)
+        
+        if color != None:
+            self._draw_cell(pos, color)
+
+        # self.draw_cursor(pos)
+
+        pg.display.update()
 
     def _draw_board(self, board):
         self.screen_board.fill(self.BLACK)
@@ -81,21 +97,22 @@ class Display():
                 self.screen_board.blit(self.surf_cells[board[j][i]], (x, y))
 
         self.screen.blit(self.screen_board, (0, 0))
-
     
     def _draw_cell(self, pos, color):
         x, y = pos * self.size + 1
         self.screen_board.blit(self.surf_cells[color], (x, y))
         self.screen.blit(self.screen_board, (0, 0))
     
-    def _draw_cursor(self, pos: np.array):
+    def draw_cursor(self, pos: np.array):
         pos *= self.size
 
         self.screen_cursor.fill((0, 0, 0,0))
         self.screen_cursor.blit(self.surf_cursor, pos)
+
         self.screen.blit(self.screen_board, (0, 0))  # Draw board to erase cursor
         self.screen.blit(self.screen_cursor, (0, 0))
         pg.display.update()
+        
     
     def outline_text(self, string, color, outline_color, x, y):
         text = self.font_big.render(string, 1, color)
@@ -191,14 +208,14 @@ class Doku():
                 self.pos[0] += 1
         
         if self.display:
-            self.display._draw_cursor(np.array(self.pos))
+            self.display.draw_cursor(np.array(self.pos))
     
     def action(self):
         """Toggle cell at cursor position"""
         x, y = self.pos
         self.board[y, x] = (self.board[y, x] + 1) % 3
-        if self.display:
-            self.display.update_cell(self.pos, self.board[y, x])
+        self.display.update_cell(self.pos, self.board[y, x])
+        self.display.draw_cursor(np.array(self.pos))
 
         if self.is_complete():
             self.win()
@@ -247,20 +264,13 @@ class Doku():
 from gym import spaces, Env
 
 class EnvironmentDoku(Env):
-
+    DT = 0.04
     def __init__(self, game):
         self.game = game
-        self.action_space = spaces.Box(low=np.array([0, 0, 1]), high=np.array([2, 2, 2]), shape=(3,), dtype=np.int8)
-        self.observation_space = spaces.Box(low=0, high=2, shape=(game.dim,game.dim), dtype=np.int8)
+        dim = game.dim
+        self.action_space = spaces.Box(low=np.array([0, 0, 1]), high=np.array([dim-1, dim-1, 2]), shape=(3,), dtype=int)
+        self.observation_space = spaces.Box(low=0, high=2, shape=(dim,dim), dtype=np.int8)
         self.reward_range = (0, 1)
-    
-    def kek(self):
-        while True:
-            self.game.process_input()
-            # print([self.action_space.sample().tolist() for _ in range(3)])
-            print('\n'.join(str(row) for row in self.game.board))
-            quit()
-            time.sleep(0.1)
     
     def reset(self):
         self.game.reset()
@@ -276,28 +286,29 @@ class EnvironmentDoku(Env):
         
         x, y, a = action
         self.game.board[y, x] = a
-        
         done = self.game.is_complete()
         self.render(*action)
-
         return self.game.board, int(done), done
     
     def render(self, x, y, a):
         if self.game.display:
-            self.game.display.update_cell((x, y), a)
+            self.game.display.update_cell(np.array([x, y]), a)
+            
             self.game.process_input()
-            time.sleep(0.1)
+            time.sleep(self.DT)
 
     def is_done(self):
         return self.game.is_complete()
 
     def close(self):
         pass
+
 class Agent():
     def __init__(self, env: Env):
         self.env = env
 
-        self.policy = lambda state: self.env.action_space.sample()
+    def policy(self, state):
+        return self.env.action_space.sample()
     
     def episode(self):
         total_steps = 0
