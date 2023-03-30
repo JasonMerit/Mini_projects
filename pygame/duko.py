@@ -5,14 +5,18 @@ TODO:
 - Create proper starting configuration
 - Press 1-2-3-4-5 for choosing dimension size (4, 6, 8, 10, 12)
 - Fix cell offset
-- Add outline to font
+- Add outline to font (write a congrats surface)
+- Aestetics
+    - Cursor outline
+
 """
 
+import sys, os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame as pg
 from pygame import gfxdraw
 import numpy as np
 import random, time
-import sys
 
 class Display():
 
@@ -20,7 +24,7 @@ class Display():
     RED, GREEN, BLUE = (200, 20, 20), (100, 200, 20), (255, 100, 0)
     ORANGE, YELLOW, PURPLE = (0, 156, 255), (255, 255, 0), (128, 0, 255)
     COLORS = [GREY, ORANGE, BLUE]
-    SHADE = (0, 0, 0, 100)
+    SHADES = [None, (0, 130, 220), (220, 50, 0)]
 
     pg.font.init()
     # bold calibri font
@@ -55,19 +59,15 @@ class Display():
         gfxdraw.filled_circle(cursor, *offset, self.cursor_size, self.WHITE)
 
         cells = []
-        SHADE = (0, 0, 0, 255)
-        TRANS = (0, 0, 0, 0)
-        w = self.size * 3 // 4
-        x = self.size // 2 - w // 2
-        h = self.size // 8
-        y = self.size * 4 // 5
+        cell_rect = (0, 0, self.size - 2, self.size - 2)
+        w = self.size - 10
+        h = self.size // 12
+        shade_rect = (self.size // 2 - w // 2, self.size - h - 5, w, h)
         for i in range(3):
             cell = pg.Surface(size, pg.SRCALPHA)
-            pg.draw.rect(cell, self.COLORS[i], (0, 0, self.size - 2, self.size - 2), border_radius=3)
-            # pg.draw.rect(cell, SHADE, (x, y, w, h), border_radius=3)
-            # draw circular cut out on shade
-            # gfxdraw.aacircle(cell, offset[0], y, self.size // 4, TRANS)
-            # gfxdraw.filled_circle(cell, offset[0], y, self.size // 4, TRANS)
+            pg.draw.rect(cell, self.COLORS[i], cell_rect, border_radius=3)
+            if i > 0:
+                pg.draw.rect(cell, self.SHADES[i], shade_rect, border_radius=3)
             cells.append(cell)
 
         return cursor, cells
