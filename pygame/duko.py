@@ -8,6 +8,7 @@ TODO:
 - Add outline to font (write a congrats surface)
 - Aestetics
     - Cursor outline
+    - Shadowed locks on fixed cells upon press
 
 """
 
@@ -137,7 +138,7 @@ class Display():
         self.screen.blit(text, (self.SIZE // 2 - text.get_width() // 2, 5 * self.SIZE // 8 - text.get_height() // 2))
         pg.display.update()
 
-class Doku():
+class Duko():
     pos = [0, 0]
 
     def __init__(self, dim, render=True):
@@ -146,9 +147,7 @@ class Doku():
         goal = dim // 2 + dim  # Used to check if puzzle is complete
         self.goal = np.ones(self.dim, dtype=np.int8) * goal
 
-        # self.board_init = np.array([[0 for _ in range(dim)] for _ in range(dim)], dtype=np.int8)
-        self.board_init = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 2, 0], [0, 1, 0, 0]], dtype=np.int8)
-        self.fixed = list(zip(self.board_init[0], self.board_init[1]))
+        self.board_init, self.fixed = self._generate_board()
 
         self.board = self.board_init.copy()
         self.display = Display(self.board) if render else None
@@ -159,6 +158,15 @@ class Doku():
         self.pos = [0, 0]
         if self.display:
             self.display.reset(self.board, self.pos)
+    
+    def _generate_board(self):
+        """Generate a board with a unique solution"""
+        # board_init = np.array([[0 for _ in range(dim)] for _ in range(dim)], dtype=np.int8)
+        board = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 2, 0], [0, 1, 0, 0]], dtype=np.int8)
+        fixed = list(zip(*np.nonzero(board.T))) # Transpose to get x, y
+        
+        return board, fixed
+        
 
     def run(self):
         if not self.display:
@@ -223,6 +231,10 @@ class Doku():
     
     def action(self):
         """Toggle cell at cursor position"""
+        
+        if tuple(self.pos) in self.fixed:
+            return # TODO: Draw shadowed locks on fixed cells
+        
         x, y = self.pos
         self.board[y, x] = (self.board[y, x] + 1) % 3
         self.display.update_cell(self.pos, self.board[y, x])
@@ -274,7 +286,7 @@ class Doku():
 # ---------- Reinforcement learning ----------------------- #
 from gym import spaces, Env
 
-class EnvironmentDoku(Env):
+class EnvironmentDuko(Env):
     DT = 0.04
     def __init__(self, game):
         self.game = game
@@ -310,7 +322,7 @@ class EnvironmentDoku(Env):
     
     def random_action(self):
         x, y, a = self.action_space.sample()
-        while (y, x) in self.game.fixed:
+        while (x, y) in self.game.fixed:
             x, y, a = self.action_space.sample()
         
         return np.array([x, y, a])
@@ -347,7 +359,7 @@ class Test():
     The first board in the file is a boolean array indicating if the board is complete."""
 
     def __init__(self, game):
-        self.env = EnvironmentDoku(game)
+        self.env = EnvironmentDuko(game)
         self.agent = Agent(self.env)
 
         loaded = np.load("duko_configs.npz")
@@ -382,19 +394,19 @@ if __name__ == "__main__":
     try:
         setting = sys.argv[1]
         if setting == "test":
-            game = Doku(4, render=False)
+            game = Duko(4, render=False)
             test = Test(game)
             test.test_all()
         elif setting == "agent":
-            game = Doku(4, render=True)
-            env = EnvironmentDoku(game)
+            game = Duko(4, render=True)
+            env = EnvironmentDuko(game)
             agent = Agent(env)
             agent.episode()
         else:
             print("Invalid setting. Use 'test' or 'agent'.")   
 
     except IndexError:
-        game = Doku(4, render=True)
+        game = Duko(4, render=True)
         game.run()
 
 
