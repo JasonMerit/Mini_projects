@@ -1,14 +1,15 @@
+# cd C:\Users\Jason\Documents\Mini_projects\pygame
+# python duko.py
 """
-
-
 TODO:
 - Create proper starting configuration
 - Press 1-2-3-4-5 for choosing dimension size (4, 6, 8, 10, 12)
-- Fix cell offset
-- Add outline to font (write a congrats surface)
 - Aestetics
+    - Fix tile offset
+    - Add outline to font (write a congrats surface)
     - Cursor outline
-    - Shadowed locks on fixed cells upon press
+    - Shadowed locks on fixed tiles upon press
+    - Thomas shadows (polygon)
 
 """
 
@@ -28,7 +29,6 @@ class Display():
     SHADES = [None, (0, 130, 220), (220, 50, 0)]
 
     pg.font.init()
-    # bold calibri font
     font_big = pg.font.SysFont("calibri", 50, True)
     font_med = pg.font.SysFont("calibri", 30, True)
 
@@ -45,9 +45,9 @@ class Display():
         self.screen_board = pg.Surface((self.SIZE, self.SIZE))
         self.screen_cursor = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
 
-        self.surf_cursor, self.surf_cells = self.create_surfaces()
+        self.surf_cursor, self.surf_tiles = self.create_surfaces()
 
-        self.reset(board, (0, 0))
+        self.reset(board)
     
     def create_surfaces(self):
         size = np.array([self.size, self.size])
@@ -59,39 +59,68 @@ class Display():
         gfxdraw.aacircle(cursor, *offset, self.cursor_size, self.WHITE)
         gfxdraw.filled_circle(cursor, *offset, self.cursor_size, self.WHITE)
 
-        cells = []
-        cell_rect = (0, 0, self.size - 2, self.size - 2)
+        tiles = []
+        tile_rect = (0, 0, self.size - 2, self.size - 2)
         w = self.size - 10
         h = self.size // 12
         shade_horiz = (self.size // 2 - w // 2, self.size - h - 5, w, h)
         shade_verti = (h - 5, self.size // 2 - w // 2, h, w)
 
         for i in range(3):
-            cell = pg.Surface(size, pg.SRCALPHA)
-            pg.draw.rect(cell, self.COLORS[i], cell_rect, border_radius=3)
+            tile = pg.Surface(size, pg.SRCALPHA)
+            pg.draw.rect(tile, self.COLORS[i], tile_rect, border_radius=3)
             
             # Shades
             if i > 0:
-                pg.draw.rect(cell, self.SHADES[i], shade_horiz)
-                pg.draw.rect(cell, self.SHADES[i], shade_verti)
-            cells.append(cell)
+                pg.draw.rect(tile, self.SHADES[i], shade_horiz, border_radius=3)
+                pg.draw.rect(tile, self.SHADES[i], shade_verti, border_radius=3)
+            tiles.append(tile)
 
-        return cursor, cells
+        return cursor, tiles
 
-    def reset(self, board, pos):
+    def reset(self, board, pos=(0, 0)):
         self._draw_board(board)
-        self.update_cell(np.array(pos))
+        self.update_tile(np.array(pos))
         self.draw_cursor(np.array(pos))
+        self.frames = [self.screen.copy()]
+        self.frame = -1
     
-    def update_cell(self, pos, color=None):
-        """Update cell at pos with color"""
+    def next(self):
+        if self.frame == len(self.frames)-1: return
+        self.frame += 1
+        self.screen.blit(self.frames[self.frame], (0, 0))
+        pg.display.update()
+
+    def back(self):
+        if self.frame == 0: return
+        self.frame -= 1
+        self.screen.blit(self.frames[self.frame], (0, 0))
+        pg.display.update()
+
+    def first(self):
+        self.frame = 0
+        self.screen.blit(self.frames[self.frame], (0, 0))
+        pg.display.update()
+
+    def last(self):
+        self.frame = len(self.frames)-1
+        self.screen.blit(self.frames[self.frame], (0, 0))
+        pg.display.update()
+    
+    def add_frame(self, pos, color):
+        """Add frame with tile at pos with color"""
+        self._draw_tile(np.array(pos), color)
+        self.frames.append(self.screen.copy())
+        self.frame += 1
+
+    def update_tile(self, pos, color=None):
+        """Update tile at pos with color"""
         pos = np.array(pos)
         
         if color != None:
-            self._draw_cell(pos, color)
+            self._draw_tile(pos, color)
 
         # self.draw_cursor(pos)
-
         pg.display.update()
 
     def _draw_board(self, board):
@@ -100,13 +129,13 @@ class Display():
         for i in range(self.dim):
             for j in range(self.dim):
                 x, y = i * self.size + 1, j * self.size + 1
-                self.screen_board.blit(self.surf_cells[board[j][i]], (x, y))
+                self.screen_board.blit(self.surf_tiles[board[j][i]], (x, y))
 
         self.screen.blit(self.screen_board, (0, 0))
     
-    def _draw_cell(self, pos, color):
+    def _draw_tile(self, pos, color):
         x, y = pos * self.size + 1
-        self.screen_board.blit(self.surf_cells[color], (x, y))
+        self.screen_board.blit(self.surf_tiles[color], (x, y))
         self.screen.blit(self.screen_board, (0, 0))
     
     def draw_cursor(self, pos: np.array):
@@ -118,20 +147,52 @@ class Display():
         self.screen.blit(self.screen_board, (0, 0))  # Draw board to erase cursor
         self.screen.blit(self.screen_cursor, (0, 0))
         pg.display.update()
-        
     
-    def outline_text(self, string, color, outline_color, x, y):
-        text = self.font_big.render(string, 1, color)
-        text_outline = self.font_big.render(string, 1, outline_color)
-        self.screen.blit(text_outline, (x - 2, y))
-        self.screen.blit(text_outline, (x + 2, y))
-        self.screen.blit(text_outline, (x, y - 2))
-        self.screen.blit(text_outline, (x, y + 2))
-        self.screen.blit(text, (x, y))
+    _circle_cache = {}
+    def _circlepoints(self, r):
+        r = int(round(r))
+        if r in self._circle_cache:
+            return self._circle_cache[r]
+        x, y, e = r, 0, 1 - r
+        self._circle_cache[r] = points = []
+        while x >= y:
+            points.append((x, y))
+            y += 1
+            if e < 0:
+                e += 2 * y - 1
+            else:
+                x -= 1
+                e += 2 * (y - x) - 1
+        points += [(y, x) for x, y in points if x > y]
+        points += [(-x, y) for x, y in points if x]
+        points += [(x, -y) for x, y in points if y]
+        points.sort()
+        return points
+    
+    def outline_text(self,text, font, gfcolor=pg.Color('dodgerblue'), ocolor=(0, 0, 0), opx=2):
+        surface = font.render(text, True, gfcolor).convert_alpha()
+        w = surface.get_width() + 2 * opx
+        h = font.get_height()
+
+        surf_outlilne = pg.Surface((w, h + 2 * opx)).convert_alpha()
+        surf_outlilne.fill((0, 0, 0, 0))
+
+        surf = surf_outlilne.copy()
+
+        surf_outlilne.blit(font.render(text, True, ocolor).convert_alpha(), (0, 0))
+
+        for dx, dy in self._circlepoints(opx):
+            surf.blit(surf_outlilne, (dx + opx, dy + opx))
+
+        surf.blit(surface, (opx, opx))
+        return surf
     
     def congrats(self):
         text = self.font_big.render("Complete!", 1, self.WHITE)
-        self.outline_text("Complete!", self.WHITE, self.BLACK, self.SIZE // 2 - text.get_width() // 2, self.SIZE // 2 - text.get_height() // 2)
+        # self.outline_text("Complete!", self.WHITE, self.BLACK, self.SIZE // 2 - text.get_width() // 2, self.SIZE // 2 - text.get_height() // 2)
+        # self.screen.blit(text, (self.SIZE // 2 - text.get_width() // 2, self.SIZE // 2 - text.get_height() // 2))
+        surf = self.outline_text("Complete!", self.font_big)
+        self.screen.blit(surf, (self.SIZE // 2 - text.get_width() // 2, self.SIZE // 2 - text.get_height() // 2))
 
         # Press space to continue
         text = self.font_med.render("Press space to continue", 1, self.WHITE)
@@ -141,7 +202,7 @@ class Display():
 class Duko():
     pos = [0, 0]
 
-    def __init__(self, dim, render=True):
+    def __init__(self, dim=4, render=True):
         self.dim = dim
 
         goal = dim // 2 + dim  # Used to check if puzzle is complete
@@ -167,7 +228,6 @@ class Duko():
         
         return board, fixed
         
-
     def run(self):
         if not self.display:
             raise Exception("Can't run without rendering")
@@ -178,16 +238,16 @@ class Duko():
     def process_input(self):
         """Process input from keyboard.
         - Up, down, left, right to move cursor
-        - Space to toggle cell
+        - Space to toggle tile
         - Escape to quit
         """
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                quit()
+                sys.exit()
             
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
-                    quit()
+                    sys.exit()
                 
                 if event.key == pg.K_r:
                     self.reset()
@@ -230,14 +290,14 @@ class Duko():
             self.display.draw_cursor(np.array(self.pos))
     
     def action(self):
-        """Toggle cell at cursor position"""
+        """Toggle tile at cursor position"""
         
         if tuple(self.pos) in self.fixed:
-            return # TODO: Draw shadowed locks on fixed cells
+            return # TODO: Draw shadowed locks on fixed tiles
         
         x, y = self.pos
         self.board[y, x] = (self.board[y, x] + 1) % 3
-        self.display.update_cell(self.pos, self.board[y, x])
+        self.display.update_tile(self.pos, self.board[y, x])
         self.display.draw_cursor(np.array(self.pos))
 
         if self.is_complete():
@@ -283,7 +343,121 @@ class Duko():
                     self.reset()
                     return
 
+class Solver():
+    
+    done_cols, done_rows = set(), set()
+    def __init__(self, game):
+        self.game = game
+        self.display = game.display
+        board = game.board.astype(int)
+        self.DIGITS = set(range(len(board)))
+
+        # Separate blue and red tiles
+        self.BLUE, self.RED = np.zeros((2, 4, 4))
+        self.BLUE[np.where(board == 1)] = self.RED[np.where(board == 2)] = 1
+
+        for i in range(10):
+            self.equal_count()
+        else:
+            print("Complete!")
+        
+        result = (self.BLUE + 2 * self.RED).astype(np.int8)
+        # result = (self.BLUE + 2 * self.RED).astype(int).tolist()
+        # convert to ints
+
+        self.display.reset(result)
+        while True:
+            self.process_input()
+
+    def process_input(self):
+        """Process input from keyboard.
+        - Up, down, left, right to move cursor
+        - Space to toggle tile
+        - Escape to quit
+        """
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                sys.exit()
+            
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    sys.exit()
+                
+                # if event.key == pg.K_r:
+                #     self.reset()
+                
+                # Frame navigation
+                if event.key == pg.K_LEFT:
+                    self.display.back()
+                    # display.first() if pg.key.get_mods() & pg.KMOD_SHIFT else display.back()
+                    return
+                elif event.key == pg.K_RIGHT:
+                    self.display.next()
+                    # display.last() if pg.key.get_mods() & pg.KMOD_SHIFT else display.next()
+                    return
+
+    def store_frame(self, pos, color):
+        self.display.add_frame(pos, color)
+
+    def equal_count(self):
+        """Checks for equal count of 1s and 2s in rows and cols.
+        Returns True if any changes were made."""
+        changed = False
+
+        BLUE_cols = np.sum(self.BLUE, axis=1)  # Summing over cols [0., 2., 0., 1.]
+        cols = set(np.where(BLUE_cols == 2)[0]) - self.done_cols # index of filled # {1}
+        for c in cols:
+            self.done_cols.add(c)
+
+            rows = np.where(self.BLUE[:, c] == 1)[0]  # [1, 3]
+            left_over = self.DIGITS - set(rows) # {0, 2}
+            self.RED[tuple(left_over), c] = 1
+            changed = True
+            for r in left_over:
+                self.store_frame((r, c), 2)
+
+        
+        BLUE_rows = np.sum(self.BLUE, axis=0)
+        rows = set(np.where(BLUE_rows == 2)[0]) - self.done_rows
+        for r in rows:
+            self.done_rows.add(r)
+
+            cols = np.where(self.BLUE[r, :] == 1)[0] 
+            left_over = self.DIGITS - set(cols)
+            self.RED[r, tuple(left_over)] = 1
+            changed = True
+            for c in left_over:
+                self.store_frame((r, c), 2)
+        
+        RED_cols = np.sum(self.RED, axis=0)
+        cols = set(np.where(RED_cols == 2)[0]) - self.done_cols # index of filled # {1}
+        for c in cols:
+            self.done_cols.add(c)
+
+            rows = np.where(self.RED[:, c] == 1)[0]  # [1, 3]
+            left_over = self.DIGITS - set(rows) # {0, 2}
+            self.BLUE[tuple(left_over), c] = 1
+            changed = True
+            for r in left_over:
+                self.store_frame((r, c), 1)
+
+        RED_rows = np.sum(self.RED, axis=1)
+        rows = set(np.where(RED_rows == 2)[0]) - self.done_rows
+        for r in rows:
+            self.done_rows.add(r)
+
+            cols = np.where(self.RED[r, :] == 1)[0] 
+            left_over = self.DIGITS - set(cols)
+            self.BLUE[r, tuple(left_over)] = 1
+            changed = True
+            for c in left_over:
+                self.store_frame((r, c), 1)
+
+        return changed
+
 # ---------- Reinforcement learning ----------------------- #
+# Tabular q-learning where loosing is when filled is incomplete
+# Monte Carlo learning 
 from gym import spaces, Env
 
 class EnvironmentDuko(Env):
@@ -291,7 +465,8 @@ class EnvironmentDuko(Env):
     def __init__(self, game):
         self.game = game
         dim = game.dim
-        self.action_space = spaces.Box(low=np.array([0, 0, 1]), high=np.array([dim-1, dim-1, 2]), shape=(3,), dtype=int)
+        self.action_space = spaces.Box(low=np.array([0, 0, 1]), high=np.array([dim-1, dim-1, 2]), 
+                                                                        shape=(3,), dtype=int)
         self.observation_space = spaces.Box(low=0, high=2, shape=(dim,dim), dtype=np.int8)
         self.reward_range = (0, 1)
     
@@ -315,7 +490,7 @@ class EnvironmentDuko(Env):
     
     def render(self, x, y, a):
         if self.game.display:
-            self.game.display.update_cell(np.array([x, y]), a)
+            self.game.display.update_tile(np.array([x, y]), a)
             
             self.game.process_input()
             time.sleep(self.DT)
@@ -394,7 +569,7 @@ if __name__ == "__main__":
     try:
         setting = sys.argv[1]
         if setting == "test":
-            game = Duko(4, render=False)
+            game = Duko(2, render=False)
             test = Test(game)
             test.test_all()
         elif setting == "agent":
@@ -402,11 +577,15 @@ if __name__ == "__main__":
             env = EnvironmentDuko(game)
             agent = Agent(env)
             agent.episode()
+        elif setting == 'solve':
+            game = Duko(4, render=True)
+            solver = Solver(game)
         else:
             print("Invalid setting. Use 'test' or 'agent'.")   
 
     except IndexError:
         game = Duko(4, render=True)
         game.run()
+        print("opps")
 
 
