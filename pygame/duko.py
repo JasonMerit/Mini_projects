@@ -35,19 +35,20 @@ class Display():
     size = 100
     cursor_size = 15
 
-    def __init__(self, board):
-        self.dim = len(board)
+    def __init__(self, grid, is_player):
+        self.dim = len(grid)
         self.SIZE = self.size * self.dim
+        self.is_player = is_player
 
         self.screen = pg.display.set_mode((self.SIZE, self.SIZE))
-        pg.display.set_caption("10 Puzzle")
+        pg.display.set_caption("Duko")
 
-        self.screen_board = pg.Surface((self.SIZE, self.SIZE))
+        self.screen_grid = pg.Surface((self.SIZE, self.SIZE))
         self.screen_cursor = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
 
-        self.surf_cursor, self.surf_tiles = self.create_surfaces()
+        self.surf_cursor, self.surf_tiles, self.surf_menu, self.surf_congratz = self.create_surfaces()
 
-        self.reset(board)
+        self.reset(grid)
     
     def create_surfaces(self):
         size = np.array([self.size, self.size])
@@ -75,68 +76,84 @@ class Display():
                 pg.draw.rect(tile, self.SHADES[i], shade_horiz, border_radius=3)
                 pg.draw.rect(tile, self.SHADES[i], shade_verti, border_radius=3)
             tiles.append(tile)
+        
+        pos_big = (self.SIZE // 2, self.SIZE * 3 // 9)
+        pos_med = (self.SIZE // 2, self.SIZE * 4 // 9)
+        
+        menu = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
+        menu.fill(self.BLACK + (200,))
+        self.outline_text(menu, "Duko", pos_big)
+        self.outline_text(menu, "Press any key to continue", pos_med, self.font_med)
 
-        return cursor, tiles
+        congratz = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
+        self.outline_text(congratz, "Complete!", pos_big)
+        self.outline_text(congratz, "Press R to restart", pos_med, self.font_med)
 
-    def reset(self, board, pos=(0, 0)):
-        self._draw_board(board)
-        self.update_tile(np.array(pos))
-        self.draw_cursor(np.array(pos))
-        self.frames = [self.screen.copy()]
-        self.frame = -1
+        return cursor, tiles, menu, congratz
+
+    def reset(self, grid, pos=(0, 0)):
+        self._draw_grid(grid)
+        if self.is_player:
+            self.draw_cursor(np.array(pos))
+        else:
+            self.frames = [self.screen.copy()]
+            self.frame = 0
+            pg.display.set_caption(f"Duko - {self.frame+1}/{len(self.frames)}")
+            pg.display.update()
     
     def next(self):
         if self.frame == len(self.frames)-1: return
         self.frame += 1
+        pg.display.set_caption(f"Duko - {self.frame+1}/{len(self.frames)}")
         self.screen.blit(self.frames[self.frame], (0, 0))
         pg.display.update()
 
     def back(self):
         if self.frame == 0: return
         self.frame -= 1
+        pg.display.set_caption(f"Duko - {self.frame+1}/{len(self.frames)}")
         self.screen.blit(self.frames[self.frame], (0, 0))
         pg.display.update()
 
     def first(self):
         self.frame = 0
+        pg.display.set_caption(f"Duko - {self.frame+1}/{len(self.frames)}")
         self.screen.blit(self.frames[self.frame], (0, 0))
         pg.display.update()
 
     def last(self):
         self.frame = len(self.frames)-1
+        pg.display.set_caption(f"Duko - {self.frame+1}/{len(self.frames)}")
         self.screen.blit(self.frames[self.frame], (0, 0))
         pg.display.update()
     
-    def add_frame(self, pos, color):
+    def add_frame(self, grid):
         """Add frame with tile at pos with color"""
-        self._draw_tile(np.array(pos), color)
+        self._draw_grid(grid)
         self.frames.append(self.screen.copy())
         self.frame += 1
+        pg.display.set_caption(f"Duko - {self.frame+1}/{len(self.frames)}")
 
-    def update_tile(self, pos, color=None):
+    def update_tile(self, pos, color):
         """Update tile at pos with color"""
         pos = np.array(pos)
-        
-        if color != None:
-            self._draw_tile(pos, color)
-
-        # self.draw_cursor(pos)
+        self._draw_tile(pos, color)
         pg.display.update()
 
-    def _draw_board(self, board):
-        self.screen_board.fill(self.BLACK)
+    def _draw_grid(self, grid):
+        self.screen_grid.fill(self.BLACK)
 
         for i in range(self.dim):
             for j in range(self.dim):
                 x, y = i * self.size + 1, j * self.size + 1
-                self.screen_board.blit(self.surf_tiles[board[j][i]], (x, y))
+                self.screen_grid.blit(self.surf_tiles[grid[j][i]], (x, y))
 
-        self.screen.blit(self.screen_board, (0, 0))
+        self.screen.blit(self.screen_grid, (0, 0))
     
     def _draw_tile(self, pos, color):
         x, y = pos * self.size + 1
-        self.screen_board.blit(self.surf_tiles[color], (x, y))
-        self.screen.blit(self.screen_board, (0, 0))
+        self.screen_grid.blit(self.surf_tiles[color], (x, y))
+        self.screen.blit(self.screen_grid, (0, 0))
     
     def draw_cursor(self, pos: np.array):
         pos *= self.size
@@ -144,7 +161,7 @@ class Display():
         self.screen_cursor.fill((0, 0, 0,0))
         self.screen_cursor.blit(self.surf_cursor, pos)
 
-        self.screen.blit(self.screen_board, (0, 0))  # Draw board to erase cursor
+        self.screen.blit(self.screen_grid, (0, 0))  # Draw grid to erase cursor
         self.screen.blit(self.screen_cursor, (0, 0))
         pg.display.update()
     
@@ -169,9 +186,9 @@ class Display():
         points.sort()
         return points
     
-    def outline_text(self,text, font, gfcolor=pg.Color('dodgerblue'), ocolor=(0, 0, 0), opx=2):
-        surface = font.render(text, True, gfcolor).convert_alpha()
-        w = surface.get_width() + 2 * opx
+    def outline_text(self, SURFACE, text, pos, font=font_big, color=WHITE, ocolor=BLACK, opx=3):
+        surface = font.render(text, True, color).convert_alpha()
+        w = surface.get_width() + 2 * opx 
         h = font.get_height()
 
         surf_outlilne = pg.Surface((w, h + 2 * opx)).convert_alpha()
@@ -185,48 +202,51 @@ class Display():
             surf.blit(surf_outlilne, (dx + opx, dy + opx))
 
         surf.blit(surface, (opx, opx))
-        return surf
+        offset_pos = (pos[0] - w // 2, pos[1] - h // 2)
+        SURFACE.blit(surf, offset_pos)
+        # return surf
     
     def congrats(self):
-        text = self.font_big.render("Complete!", 1, self.WHITE)
-        # self.outline_text("Complete!", self.WHITE, self.BLACK, self.SIZE // 2 - text.get_width() // 2, self.SIZE // 2 - text.get_height() // 2)
-        # self.screen.blit(text, (self.SIZE // 2 - text.get_width() // 2, self.SIZE // 2 - text.get_height() // 2))
-        surf = self.outline_text("Complete!", self.font_big)
-        self.screen.blit(surf, (self.SIZE // 2 - text.get_width() // 2, self.SIZE // 2 - text.get_height() // 2))
+        self.screen.blit(self.surf_congratz, (0,0))
+        pg.display.update()
 
-        # Press space to continue
-        text = self.font_med.render("Press space to continue", 1, self.WHITE)
-        self.screen.blit(text, (self.SIZE // 2 - text.get_width() // 2, 5 * self.SIZE // 8 - text.get_height() // 2))
+    def show_menu(self):
+        self.screen.blit(self.surf_menu, (0, 0))
         pg.display.update()
 
 class Duko():
     pos = [0, 0]
 
-    def __init__(self, dim=4, render=True):
+    def __init__(self, dim=4, render=True, is_player=True, grid=None):
         self.dim = dim
 
         goal = dim // 2 + dim  # Used to check if puzzle is complete
         self.goal = np.ones(self.dim, dtype=np.int8) * goal
 
-        self.board_init, self.fixed = self._generate_board()
+        if grid is None:
+            self.grid_init, self.fixed = self._generate_grid()
+        else:
+            self.grid_init = grid
+            self.fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
 
-        self.board = self.board_init.copy()
-        self.display = Display(self.board) if render else None
+        self.grid = self.grid_init.copy()
+        self.display = Display(self.grid, is_player) if render else None
             
     def reset(self):
-        """Reset board and cursor to initial state"""
-        self.board = self.board_init.copy()
+        """Reset grid and cursor to initial state"""
+        self.grid = self.grid_init.copy()
         self.pos = [0, 0]
         if self.display:
-            self.display.reset(self.board, self.pos)
+            self.display.reset(self.grid, self.pos)
     
-    def _generate_board(self):
-        """Generate a board with a unique solution"""
-        # board_init = np.array([[0 for _ in range(dim)] for _ in range(dim)], dtype=np.int8)
-        board = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 2, 0], [0, 1, 0, 0]], dtype=np.int8)
-        fixed = list(zip(*np.nonzero(board.T))) # Transpose to get x, y
+    def _generate_grid(self):
+        """Generate a grid with a unique solution"""
+        # grid_init = np.array([[0 for _ in range(dim)] for _ in range(dim)], dtype=np.int8)
+        # grid = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 0, 2], [0, 1, 0, 0]], dtype=np.int8)
+        grid = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 2, 0], [0, 1, 0, 0]], dtype=np.int8)
+        fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
         
-        return board, fixed
+        return grid, fixed
         
     def run(self):
         if not self.display:
@@ -235,8 +255,22 @@ class Duko():
         while True:
             self.process_input()
     
+    def menu(self):
+        self.display.show_menu()
+        while True:
+            event = pg.event.wait()
+            if event.type == pg.QUIT:
+                sys.exit()
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    sys.exit()
+                else:
+                    break
+        self.display._draw_grid(self.grid)
+        pg.display.update()
+    
     def process_input(self):
-        """Process input from keyboard.
+        """Process input from keygrid.
         - Up, down, left, right to move cursor
         - Space to toggle tile
         - Escape to quit
@@ -247,7 +281,7 @@ class Duko():
             
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
-                    sys.exit()
+                    self.menu()
                 
                 if event.key == pg.K_r:
                     self.reset()
@@ -296,8 +330,8 @@ class Duko():
             return # TODO: Draw shadowed locks on fixed tiles
         
         x, y = self.pos
-        self.board[y, x] = (self.board[y, x] + 1) % 3
-        self.display.update_tile(self.pos, self.board[y, x])
+        self.grid[y, x] = (self.grid[y, x] + 1) % 3
+        self.display.update_tile(self.pos, self.grid[y, x])
         self.display.draw_cursor(np.array(self.pos))
 
         if self.is_complete():
@@ -308,7 +342,7 @@ class Duko():
         - Each row and column have equal number of non-zero entrees.
         - All rows and columns are different.
         """
-        A = self.board
+        A = self.grid
 
         # Check if all rows and columns have equal number of non-zero entrees
         if 0 in A \
@@ -345,114 +379,184 @@ class Duko():
 
 class Solver():
     
-    done_cols, done_rows = set(), set()
-    def __init__(self, game):
+    done_cols, done_rows = set(), set()  # assumming no complete
+    done = False
+    FLIP = np.array([0, 2, 1])
+    def __init__(self, game: Duko):
         self.game = game
         self.display = game.display
-        board = game.board.astype(int)
-        self.DIGITS = set(range(len(board)))
-
-        # Separate blue and red tiles
-        self.BLUE, self.RED = np.zeros((2, 4, 4))
-        self.BLUE[np.where(board == 1)] = self.RED[np.where(board == 2)] = 1
-
-        for i in range(10):
-            self.equal_count()
-        else:
-            print("Complete!")
+        self.grid = game.grid.astype(int)
+        self.N = len(self.grid)
+        self.N_2 = self.N // 2
+        self.DIGITS = set(range(self.N))
         
-        result = (self.BLUE + 2 * self.RED).astype(np.int8)
-        # result = (self.BLUE + 2 * self.RED).astype(int).tolist()
-        # convert to ints
+        self.solve()
 
-        self.display.reset(result)
         while True:
             self.process_input()
+        
+    def reset(self, new_grid=None):
+        self.done_cols, self.done_rows = set(), set()
+        self.grid = self.game.grid.astype(int) if new_grid is None else new_grid
+        self.display.reset(self.grid)
+        self.done = False
+        pg.display.update()
 
     def process_input(self):
-        """Process input from keyboard.
+        """Process input from keygrid.
         - Up, down, left, right to move cursor
         - Space to toggle tile
         - Escape to quit
         """
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                sys.exit()
+        event = pg.event.wait()
+        if event.type == pg.QUIT:
+            sys.exit()
+        
+        if event.type == pg.KEYDOWN:
+            if event.key == pg.K_ESCAPE:
+                self.game.menu()
+                
+            if event.key == pg.K_r:
+                self.reset()
             
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE:
-                    sys.exit()
-                
-                # if event.key == pg.K_r:
-                #     self.reset()
-                
-                # Frame navigation
-                if event.key == pg.K_LEFT:
-                    self.display.back()
-                    # display.first() if pg.key.get_mods() & pg.KMOD_SHIFT else display.back()
-                    return
-                elif event.key == pg.K_RIGHT:
-                    self.display.next()
-                    # display.last() if pg.key.get_mods() & pg.KMOD_SHIFT else display.next()
-                    return
+            if event.key == pg.K_SPACE:
+                print(self.done_rows)
 
-    def store_frame(self, pos, color):
-        self.display.add_frame(pos, color)
+            if event.key in (pg.K_1, pg.K_2, pg.K_3):
+                if self.done:
+                    return
+                
+                if event.key == pg.K_1:
+                    if pg.key.get_mods() & pg.KMOD_SHIFT:
+                        self.subsequent(self.grid.T, self.done_cols)
+                    else:
+                        self.subsequent(self.grid, self.done_rows)                    
+                    pg.display.flip()
+                
+                elif event.key == pg.K_2:
+                    if pg.key.get_mods() & pg.KMOD_SHIFT:
+                        self.equal_count(self.grid.T, self.done_cols)
+                    else:
+                        self.equal_count(self.grid, self.done_rows)
+                    pg.display.flip()
+                
+                elif event.key == pg.K_3:
+                    if pg.key.get_mods() & pg.KMOD_SHIFT:
+                        self.unique(self.grid.T, self.done_cols)
+                    else:
+                        self.unique(self.grid, self.done_rows)
+                    pg.display.flip()
 
-    def equal_count(self):
-        """Checks for equal count of 1s and 2s in rows and cols.
-        Returns True if any changes were made."""
+                if 0 not in self.grid:
+                    self.display.congrats()
+                    self.done = True
+            
+            # Frame navigation
+            if event.key == pg.K_LEFT:
+                self.display.back()
+                # display.first() if pg.key.get_mods() & pg.KMOD_SHIFT else display.back()
+
+            elif event.key == pg.K_RIGHT:
+                self.display.next()
+                # display.last() if pg.key.get_mods() & pg.KMOD_SHIFT else display.next()
+
+    def solve(self):
+        """Solve the puzzle"""
+        for _ in range(100):
+            self.subsequent(self.grid, self.done_rows)
+            self.subsequent(self.grid.T, self.done_cols)
+            self.equal_count(self.grid, self.done_rows)
+            self.equal_count(self.grid.T, self.done_cols)
+            self.unique(self.grid, self.done_rows)
+            self.unique(self.grid.T, self.done_cols)
+            if 0 not in self.grid:
+                break
+        else:
+            print("Not solved")
+        pg.display.flip()
+
+    def subsequent(self, rows, done: set):
+        """Checks for subsequent 1s and 2s in rows and cols.
+        Remember to check for terminal state after calling this function.
+        Returns True if any changes are made."""
         changed = False
 
-        BLUE_cols = np.sum(self.BLUE, axis=1)  # Summing over cols [0., 2., 0., 1.]
-        cols = set(np.where(BLUE_cols == 2)[0]) - self.done_cols # index of filled # {1}
-        for c in cols:
-            self.done_cols.add(c)
+        for r, row in enumerate(rows):
+            for i in range(len(row)-1):
+                if row[i] == row[i+1] != 0:
+                    if i < self.N-2 and rows[r, i+2] == 0: # if next is empty
+                        rows[r, i+2] = self.FLIP[row[i]]
+                        self.display.add_frame(self.grid)
+                        changed = True
 
-            rows = np.where(self.BLUE[:, c] == 1)[0]  # [1, 3]
-            left_over = self.DIGITS - set(rows) # {0, 2}
-            self.RED[tuple(left_over), c] = 1
-            changed = True
-            for r in left_over:
-                self.store_frame((r, c), 2)
+                    if i > 0 and rows[r, i-1] == 0: # if prev is empty
+                        rows[r, i-1] = self.FLIP[row[i]]
+                        self.display.add_frame(self.grid)
+                        changed = True
+                
+            for i in range(len(row) - 2):
+                if row[i] == row[i+2] != 0 and row[i+1] == 0:
+                    rows[r, i+1] = self.FLIP[row[i]]
+                    self.display.add_frame(self.grid)
+                    changed = True
 
+        if changed: # TODO: check functionality
+            done.update(np.where(np.all(rows != 0, axis=1))[0])
+
+        return changed
+
+    def equal_count(self, rows, done: set):
+        """Checks for equal count of 1s and 2s.
+        Remember to check for terminal state after calling this function.
+        param rows: 2D array (transposed to check cols)
+        param done: set of rows or cols that are already done
+        Returns True if any changes are made."""
+        changed = False
+
+        for r in (self.DIGITS - done):
+            row = rows[r]
+            
+            if np.sum(row == 1) == self.N_2:
+                rows[r, np.where(row == 0)[0]] = 2
+                
+                self.display.add_frame(self.grid)
+                done.add(r)
+                changed = True
+
+            elif np.sum(row == 2) == self.N_2:
+                rows[r, np.where(row == 0)[0]] = 1
+
+                self.display.add_frame(self.grid)
+                done.add(r)
+                changed = True
+
+        return changed
+
+    def unique(self, rows, done: set):
+        """Checks for unique rows and cols.
+        Remember to check for terminal state after calling this function.
+        Returns True if any changes are made."""
+        changed = False
+
+        # Find rows containing exacty two gaps
+        gapped_rows_indx = np.where(np.sum(rows == 0, axis=1) == 2)[0]  # [2 3]
+        candidates = rows[gapped_rows_indx]  # [[2 1 0 0], [1 0 0 2]]
+        keks = rows[list(done)]  # [[2 1 1 2]]
+
+        # Compare each candidate with other complete rows
+        for i, candy in enumerate(candidates):
+            # Find index of colored tiles
+            idx = np.where(candy != 0)[0]  # [0 1]
+            for kek in keks:
+                if np.array_equal(kek[idx], candy[idx]):
+                    # Replace the two gaps with complementary colors
+                    gaps = np.where(candy == 0)[0]  # [2, 3]
+                    rows[gapped_rows_indx[i], gaps] = self.FLIP[kek[gaps]]
+                    self.display.add_frame(self.grid)
+
+                    done.add(gapped_rows_indx[i])
+                    changed = True
         
-        BLUE_rows = np.sum(self.BLUE, axis=0)
-        rows = set(np.where(BLUE_rows == 2)[0]) - self.done_rows
-        for r in rows:
-            self.done_rows.add(r)
-
-            cols = np.where(self.BLUE[r, :] == 1)[0] 
-            left_over = self.DIGITS - set(cols)
-            self.RED[r, tuple(left_over)] = 1
-            changed = True
-            for c in left_over:
-                self.store_frame((r, c), 2)
-        
-        RED_cols = np.sum(self.RED, axis=0)
-        cols = set(np.where(RED_cols == 2)[0]) - self.done_cols # index of filled # {1}
-        for c in cols:
-            self.done_cols.add(c)
-
-            rows = np.where(self.RED[:, c] == 1)[0]  # [1, 3]
-            left_over = self.DIGITS - set(rows) # {0, 2}
-            self.BLUE[tuple(left_over), c] = 1
-            changed = True
-            for r in left_over:
-                self.store_frame((r, c), 1)
-
-        RED_rows = np.sum(self.RED, axis=1)
-        rows = set(np.where(RED_rows == 2)[0]) - self.done_rows
-        for r in rows:
-            self.done_rows.add(r)
-
-            cols = np.where(self.RED[r, :] == 1)[0] 
-            left_over = self.DIGITS - set(cols)
-            self.BLUE[r, tuple(left_over)] = 1
-            changed = True
-            for c in left_over:
-                self.store_frame((r, c), 1)
-
         return changed
 
 # ---------- Reinforcement learning ----------------------- #
@@ -472,21 +576,21 @@ class EnvironmentDuko(Env):
     
     def reset(self):
         self.game.reset()
-        return self.game.board
+        return self.game.grid
 
-    def reset_to(self, board):
-        self.game.board = board
-        return self.game.board
+    def reset_to(self, grid):
+        self.game.grid = grid
+        return self.game.grid
     
     def step(self, action):
         if action not in self.action_space:
             raise Exception(f"Invalid action: {action}")
         
         x, y, a = action
-        self.game.board[y, x] = a
+        self.game.grid[y, x] = a
         done = self.game.is_complete()
         self.render(*action)
-        return self.game.board, int(done), done
+        return self.game.grid, int(done), done
     
     def render(self, x, y, a):
         if self.game.display:
@@ -530,43 +634,46 @@ class Agent():
                 break
 
 class Test():
-    """Test the game and agent based on the board configurations in duko_configs.npz.
-    The first board in the file is a boolean array indicating if the board is complete."""
+    """Test the game and agent based on the grid configurations in duko_configs.npz.
+    The first grid in the file is a boolean array indicating if the grid is complete."""
 
     def __init__(self, game):
         self.env = EnvironmentDuko(game)
         self.agent = Agent(self.env)
 
         loaded = np.load("duko_configs.npz")
-        self.board_configs = [np.array(board) for board in loaded.values()]
-        self.complete = self.board_configs.pop(0)
+        self.grid_configs = [np.array(grid) for grid in loaded.values()]
+        self.complete = self.grid_configs.pop(0)
     
     def test_all(self):
         self.test_is_complete()
         self.test_agent()
     
     def test_is_complete(self):
-        for i, board in enumerate(self.board_configs):
-            self.env.reset_to(board)
+        for i, grid in enumerate(self.grid_configs):
+            self.env.reset_to(grid)
             done = self.complete[i]
-            assert(self.env.is_done() ==  done), f"Board {i} is {['NOT complete', 'complete'][done]}!\n{board}"
+            assert(self.env.is_done() ==  done), f"grid {i} is {['NOT complete', 'complete'][done]}!\n{grid}"
     
     def test_agent(self):
-        for i, board in enumerate(self.board_configs):
-            self.env.reset_to(board)
+        for i, grid in enumerate(self.grid_configs):
+            self.env.reset_to(grid)
             done = self.complete[i]
             if done:
-                print(f"Board {i} is complete!")
+                print(f"grid {i} is complete!")
                 continue
 
-            self.agent.board = board
-            print(f"Testing board {i}...")
+            self.agent.grid = grid
+            print(f"Testing grid {i}...")
             self.agent.episode()
-            assert(self.env.is_done()), f"Board {i} is NOT complete!\n{board}"
+            assert(self.env.is_done()), f"grid {i} is NOT complete!\n{grid}"
 
 
 if __name__ == "__main__":
-    try:
+    if len(sys.argv) == 1:
+        game = Duko(4, render=True)
+        game.run()
+    else:
         setting = sys.argv[1]
         if setting == "test":
             game = Duko(2, render=False)
@@ -578,14 +685,12 @@ if __name__ == "__main__":
             agent = Agent(env)
             agent.episode()
         elif setting == 'solve':
-            game = Duko(4, render=True)
+            game = Duko(4, render=True, is_player=False)
             solver = Solver(game)
         else:
-            print("Invalid setting. Use 'test' or 'agent'.")   
-
-    except IndexError:
-        game = Duko(4, render=True)
-        game.run()
-        print("opps")
+            raise Exception(f"Invalid setting: {setting}. Try 'test', 'agent' or 'solve")
 
 
+
+# Mindst tre rækker/søjler med markeringer med 4 i alt
+# 
