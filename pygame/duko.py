@@ -4,12 +4,13 @@
 TODO:
 - Create proper starting configuration
 - Press 1-2-3-4-5 for choosing dimension size (4, 6, 8, 10, 12)
+- Change pos = (x, y) to pos = (r, c) in Duko and Display
 - Aestetics
     - Fix tile offset
     - Add outline to font (write a congrats surface)
     - Cursor outline
     - Shadowed locks on fixed tiles upon press
-    - Thomas shadows (polygon)
+    - Thomas shadows (buggy for higher dims)
 
 """
 
@@ -32,12 +33,12 @@ class Display():
     font_big = pg.font.SysFont("calibri", 50, True)
     font_med = pg.font.SysFont("calibri", 30, True)
 
-    size = 100
-    cursor_size = 15
+    
 
     def __init__(self, grid, is_player):
         self.dim = len(grid)
-        self.SIZE = self.size * self.dim
+        self.SIZE = 480 # divisible by 4, 6, 8, 10, 12
+        self.size = self.SIZE // self.dim
         self.is_player = is_player
 
         self.screen = pg.display.set_mode((self.SIZE, self.SIZE))
@@ -53,28 +54,34 @@ class Display():
     def create_surfaces(self):
         size = np.array([self.size, self.size])
         offset =  size // 2
+        cursor_size = 20 - self.dim
 
         cursor = pg.Surface(size, pg.SRCALPHA) 
-        gfxdraw.aacircle(cursor, *offset, self.cursor_size + 2, self.BLACK)
-        gfxdraw.filled_circle(cursor, *offset, self.cursor_size + 2, self.BLACK)
-        gfxdraw.aacircle(cursor, *offset, self.cursor_size, self.WHITE)
-        gfxdraw.filled_circle(cursor, *offset, self.cursor_size, self.WHITE)
+        gfxdraw.aacircle(cursor, *offset, cursor_size + 2, self.BLACK)
+        gfxdraw.filled_circle(cursor, *offset, cursor_size + 2, self.BLACK)
+        gfxdraw.aacircle(cursor, *offset, cursor_size, self.WHITE)
+        gfxdraw.filled_circle(cursor, *offset, cursor_size, self.WHITE)
 
         tiles = []
         tile_rect = (0, 0, self.size - 2, self.size - 2)
-        w = self.size - 10
-        h = self.size // 12
-        shade_horiz = (self.size // 2 - w // 2, self.size - h - 5, w, h)
-        shade_verti = (h - 5, self.size // 2 - w // 2, h, w)
+        # w = self.size - 10
+        # h = self.size // 12
+        # shade_horiz = (self.size // 2 - w // 2, self.size - h - 5, w, h)
+        # shade_verti = (h - 5, self.size // 2 - w // 2, h, w)
+        k = self.size // 12; c = k // 2; t = c // 2
+        points = [(c, c), (k, k), (k, self.size-k-t),   # Odd sizes
+                (self.size-k, self.size-k-t), (self.size-c, self.size-c-t), (c, self.size-c-t)]
 
         for i in range(3):
             tile = pg.Surface(size, pg.SRCALPHA)
             pg.draw.rect(tile, self.COLORS[i], tile_rect, border_radius=3)
             
-            # Shades
+            # Shades            
             if i > 0:
-                pg.draw.rect(tile, self.SHADES[i], shade_horiz, border_radius=3)
-                pg.draw.rect(tile, self.SHADES[i], shade_verti, border_radius=3)
+                # pg.draw.rect(tile, self.SHADES[i], shade_horiz, border_radius=3)
+                # pg.draw.rect(tile, self.SHADES[i], shade_verti, border_radius=3)
+                pg.draw.polygon(tile, self.SHADES[i], points)
+
             tiles.append(tile)
         
         pos_big = (self.SIZE // 2, self.SIZE * 3 // 9)
@@ -239,13 +246,30 @@ class Duko():
         if self.display:
             self.display.reset(self.grid, self.pos)
     
+    # Sudoku generator from 
+    # https://stackoverflow.com/questions/6924216/how-to-generate-sudoku-boards-with-unique-solutions
     def _generate_grid(self):
         """Generate a grid with a unique solution"""
-        # grid_init = np.array([[0 for _ in range(dim)] for _ in range(dim)], dtype=np.int8)
+        # 1) Start with an empty board.
+        # grid = np.zeros((self.dim, self.dim), dtype=np.int8)
+        grid = np.random.randint(0, 3, size=(self.dim, self.dim))
+        free_tiles = [(i, j) for i in range(self.dim) for j in range(self.dim)]
+        # grid = np.array([[0 for _ in range(dim)] for _ in range(dim)], dtype=np.int8)
         # grid = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 0, 2], [0, 1, 0, 0]], dtype=np.int8)
-        grid = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 2, 0], [0, 1, 0, 0]], dtype=np.int8)
-        fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
+        # grid = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 0, 2, 0], [0, 1, 0, 0]], dtype=np.int8)
+        # grid = np.random.randint(0, 3, (self.dim, self.dim), dtype=np.int8)
+
+        # 2) Add a valid random color at one of the random free cells.
+
+
+        # 3) Backtrack solver to check if there is a unique solution.
+
+        # 4) Repeat 2) until unique solution.
+        # for _ in range(4):
+        #     x, y = np.random.randint(0, self.dim, 2)
+        #     grid[x, y] = np.random.randint(1, 3)
         
+        fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
         return grid, fixed
         
     def run(self):
@@ -378,17 +402,20 @@ class Duko():
                     return
 
 class Solver():
-    
+    """
+    Solver for Duko puzzles.
+    """
     done_cols, done_rows = set(), set()  # assumming no complete
     done = False
     FLIP = np.array([0, 2, 1])
+
     def __init__(self, game: Duko):
         self.game = game
         self.display = game.display
         self.grid = game.grid.astype(int)
-        self.N = len(self.grid)
-        self.N_2 = self.N // 2
-        self.DIGITS = set(range(self.N))
+        self.dim = len(self.grid)
+        self.dim_2 = self.dim // 2
+        self.DIGITS = set(range(self.dim))
         
         self.solve()
 
@@ -484,7 +511,7 @@ class Solver():
         for r, row in enumerate(rows):
             for i in range(len(row)-1):
                 if row[i] == row[i+1] != 0:
-                    if i < self.N-2 and rows[r, i+2] == 0: # if next is empty
+                    if i < self.dim-2 and rows[r, i+2] == 0: # if next is empty
                         rows[r, i+2] = self.FLIP[row[i]]
                         self.display.add_frame(self.grid)
                         changed = True
@@ -500,7 +527,7 @@ class Solver():
                     self.display.add_frame(self.grid)
                     changed = True
 
-        if changed: # TODO: check functionality
+        if changed: 
             done.update(np.where(np.all(rows != 0, axis=1))[0])
 
         return changed
@@ -516,14 +543,14 @@ class Solver():
         for r in (self.DIGITS - done):
             row = rows[r]
             
-            if np.sum(row == 1) == self.N_2:
+            if np.sum(row == 1) == self.dim_2:
                 rows[r, np.where(row == 0)[0]] = 2
                 
                 self.display.add_frame(self.grid)
                 done.add(r)
                 changed = True
 
-            elif np.sum(row == 2) == self.N_2:
+            elif np.sum(row == 2) == self.dim_2:
                 rows[r, np.where(row == 0)[0]] = 1
 
                 self.display.add_frame(self.grid)
@@ -558,6 +585,9 @@ class Solver():
                     changed = True
         
         return changed
+
+class Generator():
+    pass
 
 # ---------- Reinforcement learning ----------------------- #
 # Tabular q-learning where loosing is when filled is incomplete
@@ -670,22 +700,34 @@ class Test():
 
 
 if __name__ == "__main__":
+        
     if len(sys.argv) == 1:
         game = Duko(4, render=True)
         game.run()
     else:
+        __dim__ = 4
+        if len(sys.argv) == 3:
+            try:
+                __dim__ = int(sys.argv[2])
+            except ValueError:
+                raise Exception(f"Invalid dimension: {sys.argv[2]}")
+            
         setting = sys.argv[1]
-        if setting == "test":
-            game = Duko(2, render=False)
+        if setting in ['4', '6', '8', '10', '12']:
+            game = Duko(int(setting), render=True)
+            game.run()
+
+        elif setting == "test":
+            game = Duko(__dim__, render=False)
             test = Test(game)
             test.test_all()
         elif setting == "agent":
-            game = Duko(4, render=True)
+            game = Duko(__dim__, render=True)
             env = EnvironmentDuko(game)
             agent = Agent(env)
             agent.episode()
         elif setting == 'solve':
-            game = Duko(4, render=True, is_player=False)
+            game = Duko(__dim__, render=True, is_player=False)
             solver = Solver(game)
         else:
             raise Exception(f"Invalid setting: {setting}. Try 'test', 'agent' or 'solve")
