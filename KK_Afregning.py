@@ -34,9 +34,11 @@ while min(transactions[:,2]) > 0:
 transactions = transactions[1:-1]
 
 names = data.columns
-print("Payer\t\tReciever\tAmount")
+print("Payer\t\t Reciever\tAmount")
 for transaction in transactions:
-    print(f"{names[int(transaction[0])]} \t {names[int(transaction[1])]} \t{np.round(transaction[2], 3)}")
+    space1 = "" if names[int(transaction[0])][:2] in ['10', '11', '12'] else " "
+    space2 = "" if names[int(transaction[1])][:2] in ['10', '11', '12'] else " "
+    print(f"{space1}{names[int(transaction[0])]} \t{space2}{names[int(transaction[1])]} \t{np.round(transaction[2], 3)}")
 
 
 
