@@ -716,8 +716,7 @@ class Generator():
             else:
                 new[pos] = FLIP[color]
                 self.solve(new)
-                # assert(self.valid_grid(new)), "Invalid grid generated :("
-                if not self.valid_grid(new):
+                if not self.valid_grid(new):  
                     print("oops")
                     return self.generate_grid(dim)  # So gross, but eh
 
@@ -727,6 +726,7 @@ class Generator():
     def follow_consequence(self, grid, pos, color, full_rows: set, full_cols: set):
         """Returns exhausted grid or None if invalid"""
         grid = grid.copy()    
+        assert(full_rows is not None and full_cols is not None)
         full_rows, full_cols = full_rows.copy(), full_cols.copy()
 
         if not self.valid_action(grid, pos, color):
@@ -805,9 +805,6 @@ class Generator():
             return False
 
         return True
-
-
-
 
 
 # ---------- Reinforcement learning ----------------------- #
