@@ -357,6 +357,10 @@ class Takuzu():
 
                 if event.key == pg.K_SPACE:
                     self.action()
+                if event.key == pg.K_s:
+                    np.save('grid.npy', self.grid)
+                    print(self.grid)
+                    print("Saved grid to grid.npy")
     
     def move(self, direction):
         if direction == "up":
@@ -812,15 +816,59 @@ class Generator():
             result = self.solve_search(grid, depth+1)
         return result
 
+    # First algorithm from stackoverflow
     def subtract(self, grid):
         """Subtracts a random tiles until one more subtraction requres solve_search."""
-        colored_tile = list(zip(*np.where(grid != 0)))
+        
+        # 2) Shuffle a list of all tiles
+        tiles = [(r, c) for r in range(len(grid)) for c in range(len(grid))]
+        np.random.shuffle(tiles) 
 
-        while 0 not in self.solve(grid):
-            tile = colored_tile[np.random.randint(len(colored_tile))]
+        while tiles:
+            # 3) Remove a tile from grid
+            tile = tiles.pop()
+            color = grid[tile]
             grid[tile] = 0
 
+            # 4) Test uniqueness of grid
+            if not self.is_unique(grid):
+                # 6) If not unique, add tile back and continue
+                grid[tile] = color
+
         return grid
+
+    def is_unique(self, grid):
+        """Checks if grid has unique solution."""
+        return self.unique_solution(grid) == 1
+    
+    def unique_solution(self, grid, solved=False):
+        """Solves grid.
+        Returns False if multiple solutions."""
+
+        grid = self.solve(grid)
+        
+        if not self.valid_grid(grid): # Invalid, so backtrack
+            return False
+        
+        if 0 not in grid:  # Solved, so terminal state
+            return 1
+
+        # Find frist instance of 0
+        zeros = np.where(grid == 0)
+        tile = zeros[0][0], zeros[1][0]
+
+        # First go left, then right
+        grid[tile] = 1
+        left = self.unique_solution(grid, solved)
+
+        grid[tile] = 2
+        right = self.unique_solution(grid, solved)
+
+        if left == 2 or right == 2:
+            return 2
+        if left == right == 1:
+            return 2
+        return self.unique_solution(grid, solved)
 
 
 # ---------- Reinforcement learning ----------------------- #
