@@ -11,6 +11,7 @@ TODO:
     - Cursor outline
     - Shadowed locks on fixed tiles upon press
     - Thomas shadows (buggy for higher dims)
+    - After pausing, cursor disappears
 
 """
 
@@ -27,9 +28,9 @@ class Display():
 
     WHITE, BLACK, GREY = (244, 244, 244), (22, 22, 22), (52, 52, 52)
     RED, GREEN, BLUE = (200, 20, 20), (100, 200, 20), (255, 100, 0)
-    ORANGE, YELLOW, PURPLE = (0, 156, 255), (255, 255, 0), (128, 0, 255)
-    COLORS = [GREY, ORANGE, BLUE]
-    SHADES = [None, (0, 130, 220), (220, 50, 0)]
+    RED, YELLOW, PURPLE = (0, 156, 255), (255, 255, 0), (128, 0, 255)
+    COLORS = [GREY, BLUE, RED]
+    SHADES = [None, (220, 50, 0), (0, 130, 220)]
 
     pg.font.init()
     font_big = pg.font.SysFont("calibri", 50, True)
@@ -227,17 +228,18 @@ class Takuzu():
     pos = [0, 0]
 
     def __init__(self, dim=4, render=True, is_player=True, grid=None):
-        self.dim = dim
-
-        goal = dim // 2 + dim  # Used to check if puzzle is complete
-        self.goal = np.ones(self.dim, dtype=np.int8) * goal
         self.generator = Generator()
 
         if grid is None:
+            self.dim = dim
             self.grid, self.fixed = self._generate_grid()
         else:
+            self.dim = len(grid)
             self.grid = grid
             self.fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
+
+        goal = self.dim // 2 + self.dim  # Used to check if puzzle is complete
+        self.goal = np.ones(self.dim, dtype=np.int8) * goal
 
         self.grid_init = self.grid.copy()
         self.display = Display(self.grid, is_player) if render else None
@@ -256,9 +258,53 @@ class Takuzu():
         if self.display:
             self.display.reset(self.grid, self.pos)
         
+        print(self.valid_grid(self.grid, verbose=True))
+    
+    def valid_grid(self, grid, verbose=False):
+        """Check that grid is valid."""
+        dim = len(grid)
+        dim_2 = dim // 2
+        
+        # Equal count
+        if np.any(np.sum(grid == 1, axis=1) > dim_2) or np.any(np.sum(grid == 2, axis=1) > dim_2):
+            print("Unequal count - rows")
+            return False
+        if np.any(np.sum(grid == 1, axis=0) > dim_2) or np.any(np.sum(grid == 2, axis=0) > dim_2):
+            print("Unequal count - cols")
+            return False
+        
+        # Subsequent (3 in a row)
+        for r in range(dim):
+            for c in range(dim):
+                if c < dim-2 and grid[r, c] == grid[r, c+1] == grid[r, c+2] != 0:
+                    if verbose:
+                        print("Subsequent - rows")
+                    return False
+                if r < dim-2 and grid[r, c] == grid[r+1, c] == grid[r+2, c] != 0:
+                    if verbose:
+                        print("Subsequent - cols")
+                    return False
+        
+        # Unique
+        full_rows = grid[np.where(grid.all(axis=1))[0]]
+        if len(full_rows) != len(np.unique(full_rows, axis=0)):
+            if verbose:
+                print("Duplicate - rows")
+            return False
+        
+        full_cols = grid.T[np.where(grid.all(axis=0))[0]]
+        if len(full_cols) != len(np.unique(full_cols, axis=0)):
+            if verbose:
+                print("Duplicate - cols")
+            return False
+        
+        return True
+        
     def _generate_grid(self):
         """Generate a grid with a unique solution"""
         grid = self.generator.generate_grid(self.dim)
+        # grid = np.load('grid.npy')
+        # grid = np.random.randint(0, 3, size=(self.dim, self.dim))
         fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
         return grid, fixed
         
@@ -523,13 +569,13 @@ class GameSolver():
                         if np.all(row != 0):
                             full.add(r)
                     
-                    if i < len(row)-2 and row[i] == row[i+2] != 0 and row[i+1] == 0:  # Gap between two same
-                        rows[r, i+1] = FLIP[row[i]]
-                        changed = True
-                        self.display.add_frame(self.grid)
-                    
-                        if np.all(row != 0):
-                            full.add(r)
+                if i < len(row)-2 and row[i] == row[i+2] != 0 and row[i+1] == 0:  # Gap between two same
+                    rows[r, i+1] = FLIP[row[i]]
+                    changed = True
+                    self.display.add_frame(self.grid)
+                
+                    if np.all(row != 0):
+                        full.add(r)
 
         return changed
    
@@ -584,86 +630,80 @@ class GameSolver():
 class Solver():
     """General solver class.
     Helper class to Generator."""
-    
 
     def solve(self, grid):
-        """Solves grid in place.
+        """Returns an exhasuted grid.
         Assumes valid grid."""
-        self.dim = len(grid)
-        self.dim_2 = self.dim // 2
-        
-        full_rows, full_cols = set(), set()
-        self.DIGITS = set(range(self.dim))
-        
+        grid = grid.copy()
         while True:
-            if self.subsequent(grid, full_rows):
+            full_r = np.where(grid.all(axis=1))[0]
+            full_c = np.where(grid.all(axis=0))[0]
+
+            if self.subsequent(grid, full_r):
                 continue
-            if self.subsequent(grid.T, full_cols):
+            if self.subsequent(grid.T, full_c):
                 continue
-            if self.equal_count(grid, full_rows):
+            if self.equal_count(grid, full_r):
                 continue
-            if self.equal_count(grid.T, full_cols):
+            if self.equal_count(grid.T, full_c):
                 continue
-            if self.unique(grid, full_rows):
+            if self.unique(grid, full_r):
                 continue
-            if self.unique(grid.T, full_cols):
+            if self.unique(grid.T, full_c):
                 continue
             break
+        assert(grid is not None), "Grid is None when done solving"
+        return grid
 
-    def subsequent(self, rows, full: set):
+    def subsequent(self, rows, full):
         """Checks for subsequent 1s and 2s in rows and cols.
         Returns True if any changes are made."""
         changed = False
+        dim = len(rows)
 
         for r, row in enumerate(rows):
             if r in full:
                 continue
-
+            
             for i in range(len(row)-1):
                 if row[i] == row[i+1] != 0:
-                    if i < self.dim-2 and rows[r, i+2] == 0: # if next is empty
+                    if i < dim-2 and rows[r, i+2] == 0: # if next is empty
                         rows[r, i+2] = FLIP[row[i]]
                         changed = True
-                        if np.all(row != 0):
-                            full.add(r)
 
                     if i > 0 and rows[r, i-1] == 0: # if prev is empty
                         rows[r, i-1] = FLIP[row[i]]
                         changed = True
-                        if np.all(row != 0):
-                            full.add(r)
                     
-                    if i < len(row)-2 and row[i] == row[i+2] != 0 and row[i+1] == 0:  # Gap between two same
-                        rows[r, i+1] = FLIP[row[i]]
-                        changed = True
-                    
-                        if np.all(row != 0):
-                            full.add(r)
+                if i < len(row)-2 and row[i] == row[i+2] != 0 and row[i+1] == 0:  # Gap between two same
+                    rows[r, i+1] = FLIP[row[i]]
+                    changed = True
 
         return changed
 
-    def equal_count(self, rows, full: set):
+    def equal_count(self, rows, full):
         """Checks for equal count of 1s and 2s.
         param rows: 2D array
         param full: set of rows or cols that are already full
         Returns True if any changes are made."""
         changed = False
-        for r in (self.DIGITS - full):
-            row = rows[r]
-            # print(row)
-            if np.sum(row == 1) == self.dim_2:
+        dim_2 = len(rows) // 2
+
+        for r, row in enumerate(rows):
+            if r in full:
+                continue
+
+            if np.sum(row == 1) == dim_2:
                 rows[r, np.where(row == 0)[0]] = 2
-                full.add(r)
                 changed = True
 
-            elif np.sum(row == 2) == self.dim_2:
+            elif np.sum(row == 2) == dim_2:
                 rows[r, np.where(row == 0)[0]] = 1
-                full.add(r)
                 changed = True
         
         return changed
 
-    def unique(self, rows, full: set):
+    def unique(self, rows, full):
         """Checks for unique rows and cols.
         Returns True if any changes are made."""
         changed = False
@@ -671,22 +711,22 @@ class Solver():
         # Find rows containing exacty two gaps
         gapped_rows_indx = np.where(np.sum(rows == 0, axis=1) == 2)[0]  # [2 3]
         candidates = rows[gapped_rows_indx]  # [[2 1 0 0], [1 0 0 2]]
-        keks = rows[list(full)]  # [[2 1 1 2]]
+        full_rows = rows[full]  # [[2 1 1 2]]
 
         # Compare each candidate with other complete rows
         for i, candy in enumerate(candidates):
             # Find index of colored tiles
             idx = np.where(candy != 0)[0]  # [0 1]
-            for kek in keks:
-                if np.array_equal(kek[idx], candy[idx]):
+            for row in full_rows:
+                if np.array_equal(row[idx], candy[idx]):
                     # Replace the two gaps with complementary colors
                     gaps = np.where(candy == 0)[0]  # [2, 3]
-                    rows[gapped_rows_indx[i], gaps] = FLIP[kek[gaps]]
+                    rows[gapped_rows_indx[i], gaps] = FLIP[row[gaps]]
 
-                    full.add(gapped_rows_indx[i])
                     changed = True
         
         return changed
+
 
 class Generator():
     """Generates Takuzu puzzles."""
@@ -695,116 +735,92 @@ class Generator():
     def __init__(self):
         self.solver = Solver()
         self.solve = self.solver.solve
-
-    def generate_grid(self, dim):
-        self.dim = dim
-        self.dim_2 = dim // 2
-        new = np.zeros((dim, dim), dtype=np.int8)
-        free_tiles = [(i, j) for i in range(dim) for j in range(dim)]
-        full_rows, full_cols = set(), set()
-
-        while len(free_tiles) > 0:
-            indx = np.random.randint(len(free_tiles))
-            pos = free_tiles.pop(indx)
-            if new[pos] != 0:
-                continue
-
-            color = np.random.randint(1, 3)
-            result = self.follow_consequence(new, pos, color, full_rows, full_cols)
-            if result is not None:
-                new, full_rows, full_cols = result
-            else:
-                new[pos] = FLIP[color]
-                self.solve(new)
-                if not self.valid_grid(new):  
-                    print("oops")
-                    return self.generate_grid(dim)  # So gross, but eh
-
-        
-        return new
     
-    def follow_consequence(self, grid, pos, color, full_rows: set, full_cols: set):
-        """Returns exhausted grid or None if invalid"""
-        grid = grid.copy()    
-        assert(full_rows is not None and full_cols is not None)
-        full_rows, full_cols = full_rows.copy(), full_cols.copy()
-
-        if not self.valid_action(grid, pos, color):
-            return None
-        
-        grid[pos] = color
-        self.solve(grid)  # Exhaust the grid
-        
-        return grid, full_rows, full_cols if self.valid_grid(grid) else None
-
-    def valid_action(self, grid, pos, color):
-        """Check that placing color at pos is valid."""
-        r, c = pos
-        if grid[r, c] != 0:  # Neccessary?
-            return False
-
-        # Equal count
-        if np.sum(grid[r] == color) + 1 > self.dim_2 or np.sum(grid[:, c] == color) + 1 > self.dim_2:
-            return False
-
-        # Check gap subsequent
-        if 0 < r < self.dim-1 and grid[r-1, c] == grid[r+1, c] == color:
-            return False
-        if 0 < c < self.dim-1 and grid[r, c-1] == grid[r, c+1] == color:
-            return False
-
-        # Check subsequent
-        if r > 1 and grid[r-2, c] == grid[r-1, c] == color:
-            return False
-        if r < self.dim-2 and grid[r+2, c] == grid[r+1, c] == color:
-            return False
-        if c > 1 and grid[r, c-2] == grid[r, c-1] == color:
-            return False
-        if c < self.dim-2 and grid[r, c+2] == grid[r, c+1] == color:
-            return False
-        
-        # Check unique
-        if len(np.unique(grid, axis=0)) != len(grid):
-            return False
-        if len(np.unique(grid, axis=1)) != len(grid):
-            return False
-        
-        return True
-
     def valid_grid(self, grid, verbose=False):
         """Check that grid is valid."""
+        dim = len(grid)
+        dim_2 = dim // 2
         
         # Equal count
-        if np.any(np.sum(grid == 1, axis=1) > self.dim_2) or np.any(np.sum(grid == 2, axis=1) > self.dim_2):
+        if np.any(np.sum(grid == 1, axis=1) > dim_2) or np.any(np.sum(grid == 2, axis=1) > dim_2):
+            if verbose:
+                print("Unequal count - rows")
             return False
-        if np.any(np.sum(grid == 1, axis=0) > self.dim_2) or np.any(np.sum(grid == 2, axis=0) > self.dim_2):
+        if np.any(np.sum(grid == 1, axis=0) > dim_2) or np.any(np.sum(grid == 2, axis=0) > dim_2):
+            if verbose:
+                print("Unequal count - cols")
             return False
         
         # Subsequent (3 in a row)
-        for r in range(self.dim):
-            for c in range(self.dim):
-                if c < self.dim-2 and grid[r, c] == grid[r, c+1] == grid[r, c+2] != 0:
+        for r in range(dim):
+            for c in range(dim):
+                if c < dim-2 and grid[r, c] == grid[r, c+1] == grid[r, c+2] != 0:
                     if verbose:
-                        print("Subsequent")
+                        print("Subsequent - rows")
                     return False
-                if r < self.dim-2 and grid[r, c] == grid[r+1, c] == grid[r+2, c] != 0:
+                if r < dim-2 and grid[r, c] == grid[r+1, c] == grid[r+2, c] != 0:
                     if verbose:
-                        print("Subsequent")
+                        print("Subsequent - cols")
                     return False
         
         # Unique
-        full_rows = grid[np.where(np.sum(grid == 0, axis=1) == 0)[0]]
+        full_rows = grid[np.where(grid.all(axis=1))[0]]
         if len(full_rows) != len(np.unique(full_rows, axis=0)):
             if verbose:
-                print("Unique")
+                print("Duplicate - rows")
             return False
-        full_cols = grid.T[np.where(np.sum(grid == 0, axis=0) == 0)[0]]
+        
+        full_cols = grid.T[np.where(grid.all(axis=0))[0]]
         if len(full_cols) != len(np.unique(full_cols, axis=0)):
             if verbose:
-                print("Unique")
+                print("Duplicate - cols")
             return False
-
+        
         return True
+
+    def generate_grid(self, dim):
+        print("Generating grid...")
+        new = np.zeros((dim, dim), dtype=np.int8)
+        complete = self.solve_search(new)
+        grid = self.subtract(complete)
+        return grid
+    
+    def solve_search(self, grid, depth=0):
+        """Solves and searches for solution.
+        Returns None if no solution found or grid if solution found."""
+        # print(depth)
+        grid = self.solve(grid)
+        assert(grid is not None), "Grid is None" 
+        
+        if not self.valid_grid(grid): # Invalid, so backtrack
+            # print(grid,'\n')
+            return None
+        
+        if 0 not in grid:  # Solved, so terminal state
+            return grid
+
+        # Randomly select empty cell and fill with 1 or 2
+        empty_cells = list(zip(*np.where(grid == 0)))
+        tile = empty_cells[np.random.randint(len(empty_cells))]
+        color = np.random.randint(1, 3)
+
+        grid[tile] = color
+        result = self.solve_search(grid, depth+1)
+
+        if result is None:
+            grid[tile] = FLIP[color]
+            result = self.solve_search(grid, depth+1)
+        return result
+
+    def subtract(self, grid):
+        """Subtracts a random tiles until one more subtraction requres solve_search."""
+        colored_tile = list(zip(*np.where(grid != 0)))
+
+        while 0 not in self.solve(grid):
+            tile = colored_tile[np.random.randint(len(colored_tile))]
+            grid[tile] = 0
+
+        return grid
 
 
 # ---------- Reinforcement learning ----------------------- #
@@ -934,7 +950,9 @@ if __name__ == "__main__":
         if setting in ['4', '6', '8', '10', '12']:
             game = Takuzu(int(setting), render=True)
             game.run()
-
+        if setting == 'load':
+            game = Takuzu(grid=np.load('grid.npy'), render=True)
+            game.run()
         elif setting == "test":
             game = Takuzu(__dim__, render=False)
             test = Test(game)
