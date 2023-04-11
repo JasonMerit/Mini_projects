@@ -2,18 +2,12 @@
 #python takuzu.py
 """
 TODO:
-- When ESC is pressed copy current screen and return to it after unpasuing
-- Press 1-2-3-4-5 for choosing dimension size (4, 6, 8, 10, 12)
-- Complain if invalid
-- Press M for hint
-- Press Z for undo
+- 2-player mode
 - Aestetics
     - Fix tile offset
-    - Add outline to font (write a congrats surface)
-    - Cursor outline
-    - Shadowed locks on fixed tiles upon press
-    - Thomas shadows (buggy for higher dims)
-    - After pausing, cursor disappears
+    - Thomas shadows (buggy for higher dims due to subtracting)
+    - Color counter at every end
+    - Press Z for undo (make it double redo if blue)
 
 """
 
@@ -31,6 +25,7 @@ class Display():
     WHITE, BLACK, GREY = (244, 244, 244), (22, 22, 22), (52, 52, 52)
     RED, GREEN, BLUE = (200, 20, 20), (100, 200, 20), (255, 100, 0)
     RED, YELLOW, PURPLE = (0, 156, 255), (255, 255, 0), (128, 0, 255)
+    EMPTY = (0,0,0,0)
     COLORS = [GREY, BLUE, RED]
     SHADES = [None, (220, 50, 0), (0, 130, 220)]
 
@@ -38,34 +33,29 @@ class Display():
     font_big = pg.font.SysFont("calibri", 50, True)
     font_med = pg.font.SysFont("calibri", 30, True)
 
+    SIZE = 480 # divisible by 4, 6, 8, 10, 12
     fixed_visible = False
 
-    def __init__(self, grid, is_player):
-        self.dim = len(grid)
-        self.SIZE = 480 # divisible by 4, 6, 8, 10, 12
-        self.size = self.SIZE // self.dim
+    def __init__(self, is_player):
         self.is_player = is_player
 
         self.screen = pg.display.set_mode((self.SIZE, self.SIZE))
-        pg.display.set_caption("Takuzu")
-
         self.screen_grid = pg.Surface((self.SIZE, self.SIZE))
-        self.screen_cursor = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
-
-        self.surf_cursor, self.surf_tiles, self.surf_menu, self.surf_congratz, self.surf_fixed = self.create_surfaces()
-
-        self.reset(grid)
+        self.screen_fixed = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
+        self.screen_cursor = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)        
     
     def create_surfaces(self):
         size = np.array([self.size, self.size])
+        border_radius = self.size // 12
         offset =  size // 2
         cursor_size = 20 - self.dim
 
         cursor = pg.Surface(size, pg.SRCALPHA) 
-        gfxdraw.aacircle(cursor, *offset, cursor_size + 2, self.BLACK)
-        gfxdraw.filled_circle(cursor, *offset, cursor_size + 2, self.BLACK)
-        gfxdraw.aacircle(cursor, *offset, cursor_size, self.WHITE)
-        gfxdraw.filled_circle(cursor, *offset, cursor_size, self.WHITE)
+        # gfxdraw.aacircle(cursor, *offset, cursor_size + 2, self.BLACK)
+        # gfxdraw.filled_circle(cursor, *offset, cursor_size + 2, self.BLACK)
+        # gfxdraw.aacircle(cursor, *offset, cursor_size, self.WHITE)
+        # gfxdraw.filled_circle(cursor, *offset, cursor_size, self.WHITE)
+        pg.draw.rect(cursor, self.WHITE, (0, 0, self.size, self.size), 2, border_radius=border_radius)
 
         tiles = []
         tile_rect = (0, 0, self.size - 2, self.size - 2)
@@ -74,17 +64,25 @@ class Display():
         # shade_horiz = (self.size // 2 - w // 2, self.size - h - 5, w, h)
         # shade_verti = (h - 5, self.size // 2 - w // 2, h, w)
         k = self.size // 12; c = k // 2; t = c // 2
+        # points = [(c, c), (k, k), (k, self.size-k-t),   # Odd sizes
+        #         (self.size-k, self.size-k-t), (self.size-c, self.size-c-t), (c, self.size-c-t)]
         points = [(c, c), (k, k), (k, self.size-k-t),   # Odd sizes
                 (self.size-k, self.size-k-t), (self.size-c, self.size-c-t), (c, self.size-c-t)]
+        # unit = self.size // 12
+        # y_offset = [2, 3, 4, 5, 6][self.dim // 2 - 2]
+        # _y_offset = [2, 3, 4, 5, 6][self.dim // 2 - 3]
+        # points = [(unit, unit), (2 * unit, 2 * unit), (2 * unit, self.size - y_offset * unit),
+        #           (self.size - y_offset * unit, self.size - y_offset * unit), 
+        #           (self.size - unit, self.size - (y_offset - 1) * unit), (unit, self.size - (y_offset - 1) * unit)]
+        
+
 
         for i in range(3):
             tile = pg.Surface(size, pg.SRCALPHA)
-            pg.draw.rect(tile, self.COLORS[i], tile_rect, border_radius=3)
+            pg.draw.rect(tile, self.COLORS[i], tile_rect, border_radius=border_radius)
             
             # Shades            
             if i > 0:
-                # pg.draw.rect(tile, self.SHADES[i], shade_horiz, border_radius=3)
-                # pg.draw.rect(tile, self.SHADES[i], shade_verti, border_radius=3)
                 pg.draw.polygon(tile, self.SHADES[i], points)
 
             tiles.append(tile)
@@ -92,23 +90,47 @@ class Display():
         pos_big = (self.SIZE // 2, self.SIZE * 3 // 9)
         pos_med = (self.SIZE // 2, self.SIZE * 4 // 9)
         
+        # Menu
         menu = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
         menu.fill(self.BLACK + (200,))
         self.outline_text(menu, "Takuzu", pos_big)
         self.outline_text(menu, "Press any key to continue", pos_med, self.font_med)
 
+        # Congrats
         congratz = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
         self.outline_text(congratz, "Complete!", pos_big)
         self.outline_text(congratz, "Press R to restart", pos_med, self.font_med)
 
-        fixed = pg.Surface(size, pg.SRCALPHA)
-        fixed.fill(self.BLACK + (200,))
-        fixed.blit(self.font_big.render("M", True, self.WHITE), (self.size // 2 - 10, self.size // 2 - 20))
+        # Fixed tiles
+        fixed_tiles = [None]
+        for i in [1, 2]:
+            fixed = pg.Surface(size, pg.SRCALPHA)
+            pg.draw.rect(fixed, self.SHADES[i], (self.size * 5 // 16, self.size * 4 // 10, self.size * 3 // 8, self.size * 3 // 8), border_radius=border_radius)
+            # pg.draw.rect(fixed, self.SHADES[i], (self.size // 4, self.size * 3 // 10, self.size // 2, self.size // 2), border_radius=10)
+            pg.draw.ellipse(fixed, self.SHADES[i], (self.size // 3, self.size * 3 // 13, self.size // 3, self.size // 2), self.size // 12)
+            fixed_tiles.append(fixed)
 
+        invalid = pg.Surface(size, pg.SRCALPHA)
+        # draw a string !
+        self.outline_text(invalid, "X", (self.size // 2, self.size // 2), self.font_big, self.BLACK)
 
-        return cursor, tiles, menu, congratz, fixed
+        # Darken tiles
+        dark_row = pg.Surface((self.SIZE, self.size), pg.SRCALPHA)
+        dark_row.fill(self.BLACK + (50,))
+        dark_col = pg.Surface((self.size, self.SIZE), pg.SRCALPHA)
+        dark_col.fill(self.BLACK + (50,))
+
+        return cursor, tiles, menu, congratz, fixed_tiles, invalid, (dark_row, dark_col)
 
     def reset(self, grid, pos=(0, 0)):
+        self.dim = len(grid)
+        self.size = self.SIZE // self.dim
+        pg.display.set_caption(f"Takuzu [{self.dim}]")
+
+        self.surf_cursor, self.surf_tiles, self.surf_menu, \
+            self.surf_congratz, self.surf_fixed, self.surf_invalid, \
+                self.surf_dark = self.create_surfaces()
+
         self._draw_grid(grid)
         if self.is_player:
             self.draw_cursor(np.array(pos))
@@ -118,6 +140,10 @@ class Display():
             pg.display.set_caption(f"Takuzu - {self.frame+1}/{len(self.frames)}")
             pg.display.update()
     
+    def show_invalid(self, pos):
+        self.screen.blit(self.surf_invalid, (pos[0] * self.size, pos[1] * self.size))
+        pg.display.update()
+
     def next(self):
         if self.frame == len(self.frames)-1: return
         self.frame += 1
@@ -158,16 +184,18 @@ class Display():
         pg.display.update()
 
     def _draw_grid(self, grid):
-        """Only called upon initialization and reset"""
+        """Only called upon reset (add_frame)"""
         self.screen_grid.fill(self.BLACK)
+        self.screen_fixed.fill(self.EMPTY)
 
         for i in range(self.dim):
             for j in range(self.dim):
                 x, y = i * self.size + 1, j * self.size + 1
                 self.screen_grid.blit(self.surf_tiles[grid[j][i]], (x, y))
+                if grid[j][i] != 0:  # Assumes drawn at start of grid
+                    self.screen_fixed.blit(self.surf_fixed[grid[j][i]], (x, y))
 
         self.screen.blit(self.screen_grid, (0, 0))
-
     
     def _draw_tile(self, pos, color):
         x, y = pos * self.size + 1
@@ -177,17 +205,28 @@ class Display():
     def draw_cursor(self, pos: np.array):
         pos *= self.size
 
-        self.screen_cursor.fill((0, 0, 0,0))
-        self.screen_cursor.blit(self.surf_cursor, pos)
-
         self.screen.blit(self.screen_grid, (0, 0))  # Draw grid to erase cursor
+        if self.fixed_visible:
+            self.screen.blit(self.screen_fixed, (0, 0))
+
+        self.screen_cursor.fill(self.EMPTY)
+        self.screen_cursor.blit(self.surf_cursor, pos)
+        # self.screen_cursor.blit(self.surf_dark[0], (0, pos[1]))
+        # self.screen_cursor.blit(self.surf_dark[1], (pos[0], 0))
+
         self.screen.blit(self.screen_cursor, (0, 0))
         pg.display.update()
     
     def show_fixed(self):
         # TODO: Draw shadowed locks on fixed tiles
         self.fixed_visible = not self.fixed_visible
-        print(self.fixed_visible)
+        if self.fixed_visible:
+            self.screen.blit(self.screen_fixed, (0, 0))
+            self.screen.blit(self.screen_cursor, (0, 0))
+        else:
+            self.screen.blit(self.screen_grid, (0, 0))
+            self.screen.blit(self.screen_cursor, (0, 0))
+        pg.display.update()
 
     _circle_cache = {}
     def _circlepoints(self, r):
@@ -216,7 +255,7 @@ class Display():
         h = font.get_height()
 
         surf_outlilne = pg.Surface((w, h + 2 * opx)).convert_alpha()
-        surf_outlilne.fill((0, 0, 0, 0))
+        surf_outlilne.fill(self.EMPTY)
 
         surf = surf_outlilne.copy()
 
@@ -234,29 +273,27 @@ class Display():
         self.screen.blit(self.surf_congratz, (0,0))
         pg.display.update()
 
-    def show_menu(self):
-        self.screen.blit(self.surf_menu, (0, 0))
+    def show_menu(self, show=True):
+        # Pause screen
+        screen = self.surf_menu if show else self.screen_grid
+        self.screen.blit(screen, (0, 0))
         pg.display.update()
 
 class Takuzu():
     pos = [0, 0]
 
-    def __init__(self, dim=4, render=True, is_player=True, grid=None):
+    def __init__(self, dim=4, render=True, is_player=True):
         self.generator = Generator()
-
-        if grid is None:
-            self.dim = dim
-            self.grid, self.fixed = self._generate_grid()
-        else:
-            self.dim = len(grid)
-            self.grid = grid
-            self.fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
-
+        self.solver = Solver()
+        self.display = Display(is_player) if render else None
+        self.resize(dim)
+    
+    def resize(self, dim):
+        """Resize grid to dim x dim"""
+        self.dim = dim
         goal = self.dim // 2 + self.dim  # Used to check if puzzle is complete
         self.goal = np.ones(self.dim, dtype=np.int8) * goal
-
-        self.grid_init = self.grid.copy()
-        self.display = Display(self.grid, is_player) if render else None
+        self.reset()
             
     def reset(self, soft=False):
         """Reset grid and cursor to initial state.
@@ -268,10 +305,12 @@ class Takuzu():
         else:
             self.grid, self.fixed = self._generate_grid()
             self.grid_init = self.grid.copy()
+            self.history = []
+            # self.history = [self.grid_init]
 
         if self.display:
             self.display.reset(self.grid, self.pos)
-        
+
     def valid_grid(self, grid, verbose=False):
         """Check that grid is valid."""
         dim = len(grid)
@@ -279,10 +318,12 @@ class Takuzu():
         
         # Equal count
         if np.any(np.sum(grid == 1, axis=1) > dim_2) or np.any(np.sum(grid == 2, axis=1) > dim_2):
-            print("Unequal count - rows")
+            if verbose:
+                print("Unequal count - rows")
             return False
         if np.any(np.sum(grid == 1, axis=0) > dim_2) or np.any(np.sum(grid == 2, axis=0) > dim_2):
-            print("Unequal count - cols")
+            if verbose:
+                print("Unequal count - cols")
             return False
         
         # Subsequent (3 in a row)
@@ -335,9 +376,10 @@ class Takuzu():
                 if event.key == pg.K_ESCAPE:
                     sys.exit()
                 else:
+                    self.display.show_menu(False)
+                    self.display.draw_cursor(np.array(self.pos))
                     break
-        self.display._draw_grid(self.grid)
-        self.display.draw_cursor(np.array(self.pos))
+
         pg.display.update()
     
     def process_input(self):
@@ -367,13 +409,23 @@ class Takuzu():
                 elif event.key == pg.K_RIGHT:
                     self.move("right")
 
-                if event.key == pg.K_SPACE:
-                    self.action()
-                if event.key == pg.K_s:
+                elif event.key == pg.K_SPACE:
+                    if pg.key.get_mods() & pg.KMOD_SHIFT:
+                        self.hint()
+                    else:
+                        self.action()
+                elif event.key == pg.K_s:
                     np.save('grid.npy', self.grid)
                     print(self.grid)
                     print("Saved grid to grid.npy")
-    
+                elif event.key == pg.K_m:
+                    self.hint()
+                elif event.key == pg.K_z:
+                    self.undo()
+
+                elif event.key in (pg.K_1, pg.K_2, pg.K_3, pg.K_4, pg.K_5, pg.K_6):
+                    self.resize((event.key - pg.K_0 + 1) * 2)
+
     def move(self, direction):
         if direction == "up":
             if self.pos[1] == 0:
@@ -407,13 +459,25 @@ class Takuzu():
             return 
         
         x, y = self.pos
+        # if self.grid[y, x] != 0:
+        #     self.history[-1] = self.grid.copy()
+        # else:
+        self.history.append(self.grid.copy())
+
         self.grid[y, x] = (self.grid[y, x] + 1) % 3
         self.display.update_tile(self.pos, self.grid[y, x])
         self.display.draw_cursor(np.array(self.pos))
 
+        if not self.valid_grid(self.grid):
+            # self.display.show_invalid(self.pos)
+            pg.display.set_caption(f"Takuzu [{self.dim}] :(")
+            return
+        else:
+            pg.display.set_caption(f"Takuzu [{self.dim}]")
+
         if self.is_complete():
             self.win()
-    
+
     def is_complete(self):
         """Returns true if the puzzle is complete:
         - Each row and column have equal number of non-zero entrees.
@@ -453,6 +517,27 @@ class Takuzu():
                 if event.key in [pg.K_SPACE, pg.K_KP_ENTER, pg.K_r]:
                     self.reset()
                     return
+
+    def hint(self):
+        """Show a hint"""
+        action = self.solver.get_next(self.grid)
+        (y, x), color = action
+
+        self.grid[y, x] = color
+        self.display.update_tile([x, y], color)
+        self.display.draw_cursor(np.array(self.pos))
+        
+        if self.is_complete():
+            self.win()
+
+    def undo(self):
+        """Undo last move"""
+        if len(self.history) > 0:
+            self.grid = self.history[-1]
+            self.history.pop()
+            self.display._draw_grid(self.grid)
+            self.display.draw_cursor(np.array(self.pos))
+
 
 class GameSolver():
     """
@@ -669,7 +754,7 @@ class Solver():
             if self.unique(grid.T, full_c):
                 continue
             break
-        assert(grid is not None), "Grid is None when done solving"
+        
         return grid
 
     def subsequent(self, rows, full):
@@ -744,6 +829,86 @@ class Solver():
         
         return changed
 
+    def get_next(self, grid):
+        """Returns the next grid in the sequence.
+        Assumes valid grid."""
+        grid = grid.copy()
+
+        full_r = np.where(grid.all(axis=1))[0]
+        full_c = np.where(grid.all(axis=0))[0]
+
+        if action := self._subsequent(grid, full_r):
+            return action
+        if action := self._subsequent(grid.T, full_c):
+            (y, x), color = action 
+            return (x, y), color
+        if action := self._equal_count(grid, full_r):
+            return action
+        if action := self._equal_count(grid.T, full_c):
+            (y, x), color = action 
+            return (x, y), color
+        if action := self._unique(grid, full_r):
+            return action
+        if action := self._unique(grid.T, full_c):
+            (y, x), color = action 
+            return (x, y), color
+        raise Exception("No action found")
+        
+    def _subsequent(self, rows, full):
+        """Checks for subsequent 1s and 2s in rows and cols.
+        Returns True if any changes are made."""
+        dim = len(rows)
+
+        for r, row in enumerate(rows):
+            if r in full:
+                continue
+            
+            for i in range(len(row)-1):
+                if row[i] == row[i+1] != 0:
+                    if i < dim-2 and rows[r, i+2] == 0: # if next is empty
+                        return (r, i+2), FLIP[row[i]]
+
+                    if i > 0 and rows[r, i-1] == 0: # if prev is empty
+                        return (r, i-1), FLIP[row[i]]
+                    
+                if i < len(row)-2 and row[i] == row[i+2] != 0 and row[i+1] == 0:  # Gap between two same
+                    return (r, i+1), FLIP[row[i]]
+
+    def _equal_count(self, rows, full):
+        """Checks for equal count of 1s and 2s.
+        param rows: 2D array
+        param full: set of rows or cols that are already full
+        Returns True if any changes are made."""
+        dim_2 = len(rows) // 2
+
+        for r, row in enumerate(rows):
+            if r in full:
+                continue
+
+            if np.sum(row == 1) == dim_2:
+                return (r, np.where(row == 0)[0][0]), 2
+
+            elif np.sum(row == 2) == dim_2:
+                return (r, np.where(row == 0)[0][0]), 1
+        
+    def _unique(self, rows, full):
+        """Checks for unique rows and cols.
+        Returns True if any changes are made."""
+
+        # Find rows containing exacty two gaps
+        gapped_rows_indx = np.where(np.sum(rows == 0, axis=1) == 2)[0]  # [2 3]
+        candidates = rows[gapped_rows_indx]  # [[2 1 0 0], [1 0 0 2]]
+        full_rows = rows[full]  # [[2 1 1 2]]
+
+        # Compare each candidate with other complete rows
+        for i, candy in enumerate(candidates):
+            # Find index of colored tiles
+            idx = np.where(candy != 0)[0]  # [0 1]
+            for row in full_rows:
+                if np.array_equal(row[idx], candy[idx]):
+                    # Replace the two gaps with complementary colors
+                    gaps = np.where(candy == 0)[0][0]  # [2, 3]
+                    return (gapped_rows_indx[i], gaps), FLIP[row[gaps]]
 
 class Generator():
     """Generates Takuzu puzzles."""
@@ -796,7 +961,6 @@ class Generator():
         return True
 
     def generate_grid(self, dim):
-        print("Generating grid...")
         new = np.zeros((dim, dim), dtype=np.int8)
         complete = self.solve_search(new)
         grid = self.subtract(complete)
@@ -1011,7 +1175,7 @@ if __name__ == "__main__":
                 raise Exception(f"Invalid dimension: {sys.argv[2]}")
             
         setting = sys.argv[1]
-        if setting in ['4', '6', '8', '10', '12']:
+        if setting in ['4', '6', '8', '10', '12', '14', '16']:
             game = Takuzu(int(setting), render=True)
             game.run()
         if setting == 'load':
