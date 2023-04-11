@@ -2,9 +2,10 @@
 #python takuzu.py
 """
 TODO:
-- Create proper starting configuration
 - Press 1-2-3-4-5 for choosing dimension size (4, 6, 8, 10, 12)
-- Change pos = (x, y) to pos = (r, c) in Takuzu and Display
+- Complain if invalid
+- Press M for hint
+- Press Z for undo
 - Aestetics
     - Fix tile offset
     - Add outline to font (write a congrats surface)
@@ -36,7 +37,7 @@ class Display():
     font_big = pg.font.SysFont("calibri", 50, True)
     font_med = pg.font.SysFont("calibri", 30, True)
 
-    
+    fixed_visible = False
 
     def __init__(self, grid, is_player):
         self.dim = len(grid)
@@ -50,7 +51,7 @@ class Display():
         self.screen_grid = pg.Surface((self.SIZE, self.SIZE))
         self.screen_cursor = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
 
-        self.surf_cursor, self.surf_tiles, self.surf_menu, self.surf_congratz = self.create_surfaces()
+        self.surf_cursor, self.surf_tiles, self.surf_menu, self.surf_congratz, self.surf_fixed = self.create_surfaces()
 
         self.reset(grid)
     
@@ -99,7 +100,12 @@ class Display():
         self.outline_text(congratz, "Complete!", pos_big)
         self.outline_text(congratz, "Press R to restart", pos_med, self.font_med)
 
-        return cursor, tiles, menu, congratz
+        fixed = pg.Surface(size, pg.SRCALPHA)
+        fixed.fill(self.BLACK + (200,))
+        fixed.blit(self.font_big.render("M", True, self.WHITE), (self.size // 2 - 10, self.size // 2 - 20))
+
+
+        return cursor, tiles, menu, congratz, fixed
 
     def reset(self, grid, pos=(0, 0)):
         self._draw_grid(grid)
@@ -151,6 +157,7 @@ class Display():
         pg.display.update()
 
     def _draw_grid(self, grid):
+        print("draw_grid")
         self.screen_grid.fill(self.BLACK)
 
         for i in range(self.dim):
@@ -175,6 +182,11 @@ class Display():
         self.screen.blit(self.screen_cursor, (0, 0))
         pg.display.update()
     
+    def show_fixed(self):
+        # TODO: Draw shadowed locks on fixed tiles
+        self.fixed_visible = not self.fixed_visible
+        print(self.fixed_visible)
+
     _circle_cache = {}
     def _circlepoints(self, r):
         r = int(round(r))
@@ -258,8 +270,6 @@ class Takuzu():
         if self.display:
             self.display.reset(self.grid, self.pos)
         
-        print(self.valid_grid(self.grid, verbose=True))
-    
     def valid_grid(self, grid, verbose=False):
         """Check that grid is valid."""
         dim = len(grid)
@@ -344,7 +354,8 @@ class Takuzu():
                     self.menu()
                 
                 if event.key == pg.K_r:
-                    self.reset()
+                    # Hold down shift for hard reset
+                    self.reset(1 - pg.key.get_mods() & pg.KMOD_SHIFT)
 
                 if event.key == pg.K_UP:
                     self.move("up")
@@ -391,7 +402,8 @@ class Takuzu():
         """Toggle tile at cursor position"""
         
         if tuple(self.pos) in self.fixed:
-            return # TODO: Draw shadowed locks on fixed tiles
+            self.display.show_fixed()
+            return 
         
         x, y = self.pos
         self.grid[y, x] = (self.grid[y, x] + 1) % 3
@@ -431,13 +443,13 @@ class Takuzu():
         while True:
             event = pg.event.wait()
             if event.type == pg.QUIT:
-                quit()
+                sys.exit()
             
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
-                    quit()
+                    sys.exit()
 
-                if event.key == pg.K_SPACE:
+                if event.key in [pg.K_SPACE, pg.K_KP_ENTER, pg.K_r]:
                     self.reset()
                     return
 
@@ -830,9 +842,12 @@ class Generator():
             color = grid[tile]
             grid[tile] = 0
 
-            # 4) Test uniqueness of grid
-            if not self.is_unique(grid):
-                # 6) If not unique, add tile back and continue
+            # # 4) Test uniqueness of grid
+            # if not self.is_unique(grid):
+            #     # 6) If not unique, add tile back and continue
+            #     grid[tile] = color
+
+            if 0 in self.solve(grid):
                 grid[tile] = color
 
         return grid
