@@ -2,6 +2,7 @@
 #python takuzu.py
 """
 TODO:
+- When ESC is pressed copy current screen and return to it after unpasuing
 - Press 1-2-3-4-5 for choosing dimension size (4, 6, 8, 10, 12)
 - Complain if invalid
 - Press M for hint
@@ -157,7 +158,7 @@ class Display():
         pg.display.update()
 
     def _draw_grid(self, grid):
-        print("draw_grid")
+        """Only called upon initialization and reset"""
         self.screen_grid.fill(self.BLACK)
 
         for i in range(self.dim):
@@ -166,6 +167,7 @@ class Display():
                 self.screen_grid.blit(self.surf_tiles[grid[j][i]], (x, y))
 
         self.screen.blit(self.screen_grid, (0, 0))
+
     
     def _draw_tile(self, pos, color):
         x, y = pos * self.size + 1
@@ -313,8 +315,6 @@ class Takuzu():
     def _generate_grid(self):
         """Generate a grid with a unique solution"""
         grid = self.generator.generate_grid(self.dim)
-        # grid = np.load('grid.npy')
-        # grid = np.random.randint(0, 3, size=(self.dim, self.dim))
         fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
         return grid, fixed
         
@@ -337,6 +337,7 @@ class Takuzu():
                 else:
                     break
         self.display._draw_grid(self.grid)
+        self.display.draw_cursor(np.array(self.pos))
         pg.display.update()
     
     def process_input(self):
