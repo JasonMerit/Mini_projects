@@ -18,7 +18,6 @@ import asyncio
 import sys, os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame as pg
-from pygame import gfxdraw
 import numpy as np
 import time
 
@@ -321,6 +320,7 @@ class Takuzu():
         self.solver = Solver()
         self.display = Display(is_player) if render else None
         self.resize(4)
+
         # self.menu()
         # self.display.congrats()
     
@@ -398,12 +398,8 @@ class Takuzu():
         fixed = list(zip(*np.nonzero(grid.T))) # Transpose to get x, y
         return grid, fixed
         
-    def run(self):
-        if not self.display:
-            raise Exception("Can't run without rendering")
-        
-        while True:
-            self.process_input()
+    def step(self):
+        self.process_input()
     
     def menu(self):
         self.display.show_menu()
@@ -634,196 +630,6 @@ class Takuzu():
             self.display.draw_cursor(np.array(self.pos))
         
             self.update_valid()
-
-class GameSolver():
-    """
-    Solver for Takuzu puzzles.
-    """
-    full_cols, full_rows = set(), set()  # assumming no complete
-    done = False
-
-    def __init__(self, game: Takuzu):
-        self.game = game
-        self.display = game.display
-        self.grid = game.grid.astype(int)
-        self.dim = len(self.grid)
-        self.dim_2 = self.dim // 2
-        self.DIGITS = set(range(self.dim))
-        
-        self.solve(self.grid)
-
-        while True:
-            self.process_input()
-        
-    def reset(self, new_grid=None):
-        self.full_cols, self.full_rows = set(), set()
-        self.grid = self.game.grid.astype(int) if new_grid is None else new_grid
-        self.display.reset(self.grid)
-        self.done = False
-        pg.display.update()
-
-    def process_input(self):
-        """Process input from keygrid.
-        - Up, down, left, right to move cursor
-        - Space to toggle tile
-        - Escape to quit
-        """
-        event = pg.event.wait()
-        if event.type == pg.QUIT:
-            sys.exit()
-        
-        if event.type == pg.KEYDOWN:
-            if event.key == pg.K_ESCAPE:
-                self.game.menu()
-                
-            if event.key == pg.K_r:
-                self.reset()
-            
-            if event.key == pg.K_SPACE:
-                print(self.full_rows)
-
-            if event.key in (pg.K_1, pg.K_2, pg.K_3):
-                if self.done:
-                    return
-                
-                if event.key == pg.K_1:
-                    if pg.key.get_mods() & pg.KMOD_SHIFT:
-                        self.subsequent(self.grid.T, self.full_cols)
-                    else:
-                        self.subsequent(self.grid, self.full_rows)                    
-                    pg.display.flip()
-                
-                elif event.key == pg.K_2:
-                    if pg.key.get_mods() & pg.KMOD_SHIFT:
-                        self.equal_count(self.grid.T, self.full_cols)
-                    else:
-                        self.equal_count(self.grid, self.full_rows)
-                    pg.display.flip()
-                
-                elif event.key == pg.K_3:
-                    if pg.key.get_mods() & pg.KMOD_SHIFT:
-                        self.unique(self.grid.T, self.full_cols)
-                    else:
-                        self.unique(self.grid, self.full_rows)
-                    pg.display.flip()
-
-                if 0 not in self.grid:
-                    self.display.congrats()
-                    self.done = True
-            
-            # Frame navigation
-            if event.key == pg.K_LEFT:
-                self.display.back()
-                # display.first() if pg.key.get_mods() & pg.KMOD_SHIFT else display.back()
-
-            elif event.key == pg.K_RIGHT:
-                self.display.next()
-                # display.last() if pg.key.get_mods() & pg.KMOD_SHIFT else display.next()
-
-    def solve(self, grid):
-        """Solves grid in place.
-        Assumes valid grid."""
-        full_rows, full_cols = set(), set()
-        while True:
-            if self.subsequent(grid, full_rows):
-                continue
-            if self.subsequent(grid.T, full_cols):
-                continue
-            if self.equal_count(grid, full_rows):
-                continue
-            if self.equal_count(grid.T, full_cols):
-                continue
-            if self.unique(grid, full_rows):
-                continue
-            if self.unique(grid.T, full_cols):
-                continue
-            break
-        pg.display.flip()
-
-    def subsequent(self, rows, full: set):
-        """Checks for subsequent 1s and 2s in rows and cols.
-        Returns True if any changes are made."""
-        changed = False
-
-        for r, row in enumerate(rows):
-            if r in full:
-                continue
-
-            for i in range(len(row)-1):
-                if row[i] == row[i+1] != 0:
-                    if i < self.dim-2 and rows[r, i+2] == 0: # if next is empty
-                        rows[r, i+2] = FLIP[row[i]]
-                        changed = True
-                        self.display.add_frame(self.grid)
-                        
-                        if np.all(row != 0):
-                            full.add(r)
-
-                    if i > 0 and rows[r, i-1] == 0: # if prev is empty
-                        rows[r, i-1] = FLIP[row[i]]
-                        changed = True
-                        self.display.add_frame(self.grid)
-                        
-                        if np.all(row != 0):
-                            full.add(r)
-                    
-                if i < len(row)-2 and row[i] == row[i+2] != 0 and row[i+1] == 0:  # Gap between two same
-                    rows[r, i+1] = FLIP[row[i]]
-                    changed = True
-                    self.display.add_frame(self.grid)
-                
-                    if np.all(row != 0):
-                        full.add(r)
-
-        return changed
-   
-    def equal_count(self, rows, full: set):
-        """Checks for equal count of 1s and 2s.
-        param rows: 2D array
-        param full: set of rows or cols that are already full
-        Returns True if any changes are made."""
-        changed = False
-        for r in (self.DIGITS - full):
-            row = rows[r]
-            if np.sum(row == 1) == self.dim_2:
-                rows[r, np.where(row == 0)[0]] = 2
-                full.add(r)
-                changed = True
-                self.display.add_frame(self.grid)
-
-            elif np.sum(row == 2) == self.dim_2:
-                rows[r, np.where(row == 0)[0]] = 1
-                full.add(r)
-                changed = True
-                self.display.add_frame(self.grid)
-        
-        return changed
-
-    def unique(self, rows, full: set):
-        """Checks for unique rows and cols.
-        Returns True if any changes are made."""
-        changed = False
-
-        # Find rows containing exacty two gaps
-        gapped_rows_indx = np.where(np.sum(rows == 0, axis=1) == 2)[0]  # [2 3]
-        candidates = rows[gapped_rows_indx]  # [[2 1 0 0], [1 0 0 2]]
-        keks = rows[list(full)]  # [[2 1 1 2]]
-
-        # Compare each candidate with other complete rows
-        for i, candy in enumerate(candidates):
-            # Find index of colored tiles
-            idx = np.where(candy != 0)[0]  # [0 1]
-            for kek in keks:
-                if np.array_equal(kek[idx], candy[idx]):
-                    # Replace the two gaps with complementary colors
-                    gaps = np.where(candy == 0)[0]  # [2, 3]
-                    rows[gapped_rows_indx[i], gaps] = FLIP[kek[gaps]]
-
-                    full.add(gapped_rows_indx[i])
-                    changed = True
-                    self.display.add_frame(self.grid)
-        
-        return changed
 
 class Solver():
     """General solver class.
@@ -1263,7 +1069,10 @@ async def main():
         game = Takuzu(render=True)
         if EXPORT:
             game.process_input = game._process_input
-        game.run()
+        
+        while True:
+            game.step()
+            await asyncio.sleep(0)
         
     # else:
     #     setting = sys.argv[1]
