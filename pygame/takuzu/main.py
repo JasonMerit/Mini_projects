@@ -958,76 +958,76 @@ class Generator():
 # ---------- Reinforcement learning ----------------------- #
 # Tabular q-learning where loosing is when filled is incomplete
 # Monte Carlo learning 
-from gym import spaces, Env
+# from gym import spaces, Env
 
-class EnvironmentTakuzu(Env):
-    DT = 0.04
-    def __init__(self, game):
-        self.game = game
-        dim = game.dim
-        self.action_space = spaces.Box(low=np.array([0, 0, 1]), high=np.array([dim-1, dim-1, 2]), 
-                                                                        shape=(3,), dtype=int)
-        self.observation_space = spaces.Box(low=0, high=2, shape=(dim,dim), dtype=np.int8)
-        self.reward_range = (0, 1)
+# class EnvironmentTakuzu(Env):
+#     DT = 0.04
+#     def __init__(self, game):
+#         self.game = game
+#         dim = game.dim
+#         self.action_space = spaces.Box(low=np.array([0, 0, 1]), high=np.array([dim-1, dim-1, 2]), 
+#                                                                         shape=(3,), dtype=int)
+#         self.observation_space = spaces.Box(low=0, high=2, shape=(dim,dim), dtype=np.int8)
+#         self.reward_range = (0, 1)
     
-    def reset(self):
-        self.game.reset()
-        return self.game.grid
+#     def reset(self):
+#         self.game.reset()
+#         return self.game.grid
 
-    def reset_to(self, grid):
-        self.game.grid = grid
-        return self.game.grid
+#     def reset_to(self, grid):
+#         self.game.grid = grid
+#         return self.game.grid
     
-    def step(self, action):
-        if action not in self.action_space:
-            raise Exception(f"Invalid action: {action}")
+#     def step(self, action):
+#         if action not in self.action_space:
+#             raise Exception(f"Invalid action: {action}")
         
-        x, y, a = action
-        self.game.grid[y, x] = a
-        done = self.game.is_complete()
-        self.render(*action)
-        return self.game.grid, int(done), done
+#         x, y, a = action
+#         self.game.grid[y, x] = a
+#         done = self.game.is_complete()
+#         self.render(*action)
+#         return self.game.grid, int(done), done
     
-    def render(self, x, y, a):
-        if self.game.display:
-            self.game.display.update_tile(np.array([x, y]), a)
+#     def render(self, x, y, a):
+#         if self.game.display:
+#             self.game.display.update_tile(np.array([x, y]), a)
             
-            self.game.process_input()
-            time.sleep(self.DT)
+#             self.game.process_input()
+#             time.sleep(self.DT)
     
-    def random_action(self):
-        x, y, a = self.action_space.sample()
-        while (x, y) in self.game.fixed:
-            x, y, a = self.action_space.sample()
+#     def random_action(self):
+#         x, y, a = self.action_space.sample()
+#         while (x, y) in self.game.fixed:
+#             x, y, a = self.action_space.sample()
         
-        return np.array([x, y, a])
+#         return np.array([x, y, a])
 
-    def is_done(self):
-        return self.game.is_complete()
+#     def is_done(self):
+#         return self.game.is_complete()
 
-    def close(self):
-        pass
+#     def close(self):
+#         pass
 
-class Agent():
-    def __init__(self, env: Env):
-        self.env = env
+# class Agent():
+#     def __init__(self, env: Env):
+#         self.env = env
 
-    def policy(self, state):
-        """Returns a random action"""
-        return self.env.random_action()
+#     def policy(self, state):
+#         """Returns a random action"""
+#         return self.env.random_action()
     
-    def episode(self):
-        total_steps = 0
-        # total_reward = 0
-        state = self.env.reset()
-        while True:
-            action = self.policy(state)
-            state, r, done = self.env.step(action)  # TODO: Doesn't work properly
-            total_steps += 1
-            # total_reward += r
-            if done:
-                print(f"Complete after {total_steps} steps!")
-                break
+#     def episode(self):
+#         total_steps = 0
+#         # total_reward = 0
+#         state = self.env.reset()
+#         while True:
+#             action = self.policy(state)
+#             state, r, done = self.env.step(action)  # TODO: Doesn't work properly
+#             total_steps += 1
+#             # total_reward += r
+#             if done:
+#                 print(f"Complete after {total_steps} steps!")
+#                 break
 
 
 EXPORT = True
