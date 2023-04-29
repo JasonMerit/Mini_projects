@@ -26,9 +26,9 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame as pg
 import time
 
-# import numpy as np
-import jampy as np
-np.random.seed(42)
+import numpy as np
+# import jampy as np
+# np.random.seed(42)
 
 FLIP = np.array([0, 2, 1])
 
@@ -81,31 +81,13 @@ class Display():
         border_radius = self.size // 12
 
         cursor = pg.Surface(size, pg.SRCALPHA) 
-        # gfxdraw.aacircle(cursor, *offset, cursor_size + 2, self.BLACK)
-        # gfxdraw.filled_circle(cursor, *offset, cursor_size + 2, self.BLACK)
-        # gfxdraw.aacircle(cursor, *offset, cursor_size, self.WHITE)
-        # gfxdraw.filled_circle(cursor, *offset, cursor_size, self.WHITE)
         pg.draw.rect(cursor, self.WHITE, (0, 0, self.size, self.size), 2, border_radius=border_radius)
 
         tiles = []
         tile_rect = (0, 0, self.size - 2, self.size - 2)
-        # w = self.size - 10
-        # h = self.size // 12
-        # shade_horiz = (self.size // 2 - w // 2, self.size - h - 5, w, h)
-        # shade_verti = (h - 5, self.size // 2 - w // 2, h, w)
         k = self.size // 12; c = k // 2; t = c // 2
-        # points = [(c, c), (k, k), (k, self.size-k-t),   # Odd sizes
-        #         (self.size-k, self.size-k-t), (self.size-c, self.size-c-t), (c, self.size-c-t)]
         points = [(c, c), (k, k), (k, self.size-k-t),   # Odd sizes
                 (self.size-k, self.size-k-t), (self.size-c, self.size-c-t), (c, self.size-c-t)]
-        # unit = self.size // 12
-        # y_offset = [2, 3, 4, 5, 6][self.dim // 2 - 2]
-        # _y_offset = [2, 3, 4, 5, 6][self.dim // 2 - 3]
-        # points = [(unit, unit), (2 * unit, 2 * unit), (2 * unit, self.size - y_offset * unit),
-        #           (self.size - y_offset * unit, self.size - y_offset * unit), 
-        #           (self.size - unit, self.size - (y_offset - 1) * unit), (unit, self.size - (y_offset - 1) * unit)]
-        # shadow_rect = (self.size // 24, self.size * 21 // 24, self.size * 23 // 24, self.size // 14)
-
 
         for i in range(3):
             tile = pg.Surface(size, pg.SRCALPHA)
@@ -114,26 +96,21 @@ class Display():
             # Shades            
             if i > 0:
                 pg.draw.polygon(tile, self.SHADES[i], points)
-                # pg.draw.rect(tile, self.SHADES[i], shadow_rect, border_bottom_left_radius=border_radius, border_bottom_right_radius=border_radius)
 
             tiles.append(tile)
         
         pos_big = (self.SIZE // 2, self.SIZE * 3 // 9)
         pos_med = (self.SIZE // 2, self.SIZE * 4 // 9)
         unit = self.SIZE // 24
+
         # Menu
         menu = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
         menu.fill(self.BLACK + (200,))
-        # self.outline_text(menu, "T  k   z", (self.SIZE // 2, 2 * unit), self.font_big, color=self.BLUE, centered=False)
-        # self.outline_text(menu, "  a  u  u", (self.SIZE // 2, 2 * unit), self.font_big, color=self.RED, centered=False)
         self.outline_text(menu, "T  k  z  ", (self.SIZE * 6 // 17, 2 * unit), self.font_big, color=self.BLUE, centered=False)
         self.outline_text(menu, "  a  u u", (self.SIZE * 6 // 17, 2 * unit), self.font_big, color=self.RED, centered=False)
         
         self.outline_text(menu, "Rules", (self.SIZE // 2, 6 * unit), self.font_med)
         rules = ['- You cannot connect three tiles in a line', '- Equal number of colors in each row and column', '- All unique rows and unique columns']
-        # No subsequent three tiles of the same color in a line
-        # Jeg vil ikke sige 'row' da det beyder 'række'
-        # May not connect three tiles of the same color in a line
         for i, rule in enumerate(rules):
             self.outline_text(menu, rule, (unit, (7 + i) * unit), self.font_small, centered=False)
 
@@ -149,7 +126,7 @@ class Display():
         # Congrats
         congratz = pg.Surface((self.SIZE, self.SIZE), pg.SRCALPHA)
         self.outline_text(congratz, "Complete!", pos_big)
-        self.outline_text(congratz, "Press R to restart", pos_med, self.font_med)
+        self.outline_text(congratz, "Press any [key] to restart", pos_med, self.font_med)
         # self.outline_text(congratz, "R", (self.SIZE // 2, pos_med[1]), self.font_med, color=self.RED, centered=False)
 
         # Fixed tiles
@@ -405,11 +382,17 @@ class Takuzu():
         return grid, fixed
         
     def step(self):
-        self.process_input()
+        if k := self.process_input():
+            print(k)
+            # if k == 1:
+            #     self.menu()
+            # elif k == 2:
+            #     self.display.congrats()
+            #     self.reset()
+            # return
     
     def menu(self):
         self.display.show_menu()
-        return
         while True:
             event = pg.event.wait()
             if event.type == pg.QUIT:
@@ -422,13 +405,14 @@ class Takuzu():
                     self.display.draw_cursor(np.array(self.pos))
                     break
             
-        pg.display.update()
+        # pg.display.update()
     
     def process_input(self):
         """Process input from keygrid.
         - Up, down, left, right to move cursor
         - Space to toggle tile
         - Escape to quit
+        - Return codes {1 : menu, 2 : win}
         """
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -436,7 +420,8 @@ class Takuzu():
             
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
-                    self.menu()
+                    return 1
+                    # self.menu()
                 
                 if event.key == pg.K_r:
                     # Hold down shift for hard reset
@@ -480,7 +465,7 @@ class Takuzu():
             
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
-                    self.menu()
+                    return 1  # self.menu()
                 
                 if event.key == pg.K_r:
                     # Hold down shift for hard reset
@@ -499,7 +484,7 @@ class Takuzu():
                     if pg.key.get_mods() & pg.KMOD_SHIFT:
                         self.hint()
                     else:
-                        self.action()
+                        return self.action()  # return 2 if win
                 elif event.key == pg.K_m:
                     self.hint()
 
@@ -556,7 +541,7 @@ class Takuzu():
 
         self.is_valid = self.update_valid()
         if self.is_valid and 0 not in self.grid:
-            self.win()        
+            return 2  # self.win()        
 
     def update_valid(self):
         is_valid = self.valid_grid(self.grid)
@@ -583,7 +568,6 @@ class Takuzu():
             self.display.congrats()
 
         # Wait until space is pressed   
-        return
         while True:
             event = pg.event.wait()
             if event.type == pg.QUIT:
@@ -955,120 +939,56 @@ class Generator():
         return self.unique_solution(grid, solved)
 
 
-# ---------- Reinforcement learning ----------------------- #
-# Tabular q-learning where loosing is when filled is incomplete
-# Monte Carlo learning 
-# from gym import spaces, Env
 
-# class EnvironmentTakuzu(Env):
-#     DT = 0.04
-#     def __init__(self, game):
-#         self.game = game
-#         dim = game.dim
-#         self.action_space = spaces.Box(low=np.array([0, 0, 1]), high=np.array([dim-1, dim-1, 2]), 
-#                                                                         shape=(3,), dtype=int)
-#         self.observation_space = spaces.Box(low=0, high=2, shape=(dim,dim), dtype=np.int8)
-#         self.reward_range = (0, 1)
-    
-#     def reset(self):
-#         self.game.reset()
-#         return self.game.grid
-
-#     def reset_to(self, grid):
-#         self.game.grid = grid
-#         return self.game.grid
-    
-#     def step(self, action):
-#         if action not in self.action_space:
-#             raise Exception(f"Invalid action: {action}")
-        
-#         x, y, a = action
-#         self.game.grid[y, x] = a
-#         done = self.game.is_complete()
-#         self.render(*action)
-#         return self.game.grid, int(done), done
-    
-#     def render(self, x, y, a):
-#         if self.game.display:
-#             self.game.display.update_tile(np.array([x, y]), a)
-            
-#             self.game.process_input()
-#             time.sleep(self.DT)
-    
-#     def random_action(self):
-#         x, y, a = self.action_space.sample()
-#         while (x, y) in self.game.fixed:
-#             x, y, a = self.action_space.sample()
-        
-#         return np.array([x, y, a])
-
-#     def is_done(self):
-#         return self.game.is_complete()
-
-#     def close(self):
-#         pass
-
-# class Agent():
-#     def __init__(self, env: Env):
-#         self.env = env
-
-#     def policy(self, state):
-#         """Returns a random action"""
-#         return self.env.random_action()
-    
-#     def episode(self):
-#         total_steps = 0
-#         # total_reward = 0
-#         state = self.env.reset()
-#         while True:
-#             action = self.policy(state)
-#             state, r, done = self.env.step(action)  # TODO: Doesn't work properly
-#             total_steps += 1
-#             # total_reward += r
-#             if done:
-#                 print(f"Complete after {total_steps} steps!")
-#                 break
 
 
 EXPORT = True
 async def main():
-    if len(sys.argv) == 1:
-        game = Takuzu(render=True)
-        if EXPORT:
-            game.process_input = game._process_input
-        
-        while True:
-            game.step()
-            await asyncio.sleep(0)
-        
-    # else:
-    #     setting = sys.argv[1]
-    #     if setting == 'load':
-    #         game = Takuzu(grid=np.load('grid.npy'), render=True)
-    #         game.run()
-    #     elif setting == "test":
-    #         game = Takuzu(render=False)
-    #         test = Test(game)
-    #         test.test_all()
-    #     elif setting == "agent":
-    #         game = Takuzu(render=True)
-    #         env = EnvironmentTakuzu(game)
-    #         agent = Agent(env)
-    #         agent.episode()
-    #     elif setting == 'solve':
-    #         game = Takuzu(render=True, is_player=False)
-    #         solver = GameSolver(game)
-    #     else:
-    #         raise Exception(f"Invalid setting: {setting}. Try 'test', 'agent' or 'solve")
+    game = Takuzu(render=True)
+    if EXPORT:
+        game.process_input = game._process_input
 
+    state = None
+    while True:
+        while state is None:
+            state = game.process_input()
+            await asyncio.sleep(0)
+
+        # action - wait - resume
+        if state == 1:
+            game.display.show_menu()
+        elif state == 2:
+            game.display.congrats()
+        
+        done = False
+        while not done:  # wait
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    sys.exit()
+                if event.type == pg.KEYDOWN:
+                    if not EXPORT and event.key == pg.K_ESCAPE:
+                        sys.exit()
+                    elif event.key in [pg.K_LALT, pg.K_TAB]:
+                        continue
+                    else:
+                        done = True
+                        break
+                        
+            await asyncio.sleep(0)
+            
+        if state == 1:
+            game.display.show_menu(False)
+            game.display.draw_cursor(np.array(game.pos))
+        elif state == 2:
+            game.reset()
+
+        state = None
+        await asyncio.sleep(0)
+        
 if __name__ == "__main__":
     asyncio.run(main())
-    
-
 
 
 # Mindst tre rækker/søjler med markeringer med 4 i alt
 # Monte carlo søge træ - klam branching factor
 # Standard AI metoder til søgning (Modern Approach) - Value function estimates duration until termination or complete. Then search and pick the one with the fewest.
-
-# 
