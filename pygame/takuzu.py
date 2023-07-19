@@ -16,6 +16,11 @@ TODO:
     - Thomas shadows (buggy for higher dims due to subtracting)
     - Press Z for undo (make it double redo if blue)
     - Hint shouldn't action, but show the next move with white border (depending on rule)
+    - Holding down key rolls position
+    - Remove screen wrapping
+    - Configuiration buffers for larger sizes
+    - OR Loading screen
+    - See board generation
 
 """
 
@@ -992,3 +997,58 @@ if __name__ == "__main__":
 # Mindst tre rækker/søjler med markeringer med 4 i alt
 # Monte carlo søge træ - klam branching factor
 # Standard AI metoder til søgning (Modern Approach) - Value function estimates duration until termination or complete. Then search and pick the one with the fewest.
+
+# from abc import ABC, abstractmethod
+
+# import pygame
+
+# screen = pygame.display.set_mode((500, 500))
+# clock = pygame.time.Clock()
+
+# class GameState(ABC):
+#     ...
+#     @abstractmethod
+#     def process_state(self, *args, **kwargs):
+#         # stuff common to every state
+#         print("in common code")
+#         pygame.display.flip()
+#         clock.tick(30)
+#         ...
+        
+# class MainMenu(GameState):
+#     ...
+#     def process_state(self, *args, **kwargs):
+#         # state specific stuff
+#         print("in MainMenu")
+#         screen.fill("red")
+#         super().process_state(*args, **kwargs)
+#         ...
+        
+# class Exploring(GameState):
+#     ...
+#     def process_state(self, *args, **kwargs):
+#         # state specific stuff
+#         print("in Exploring")
+#         screen.fill("blue")
+#         super().process_state(*args, **kwargs)
+#         ...
+        
+# menu = MainMenu()
+# exploring = Exploring()
+
+# current_state = menu
+
+# running = True
+# while running:
+#     for event in pygame.event.get():
+#         if event.type == pygame.QUIT:
+#             running = False
+            
+#         if event.type == pygame.KEYDOWN:
+#             if event.key == pygame.K_ESCAPE:
+#                 if current_state == menu:
+#                     current_state = exploring
+#                 else:
+#                     current_state = menu
+    
+#     current_state.process_state()

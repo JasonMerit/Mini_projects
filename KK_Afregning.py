@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 # Read the data from downloaded csv file
-data = pd.read_csv('C:/Users/Jason/Documents/DTU/KK/KK 29 regnskab - Alle_4_23.csv')
+data = pd.read_csv("C:/Users/Jason/Downloads/KK 29 regnskab - Alle_6_23.csv")
 
 # Replace commas with dots and convert to float
 data = data.replace(',','.', regex=True).astype(float)
