@@ -4,19 +4,14 @@ BUG:
     - Double A* cheats! But it seems to predict which is the correct path: Seed: 24769 / size: 20
       SOLUTION: Bad indenting. Did not check if maze.connected(B, neighbor), lol. 
 """
-from treelib import Tree
 import random
 import pygame as pg
 from queue import Queue
+import networkx as nx
 # random.seed(1)
-PLAYER = False
+from Maze_config import *
 
 DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # up, down, left, right
-SCREEN_SIZE = 640
-SIZE = 20
-GOAL = SIZE * SIZE - 1
-FPS = 300
-
 # Visualize the maze
 pg.init()
 CELL = SCREEN_SIZE // SIZE
@@ -41,69 +36,62 @@ player_screen = pg.Surface((CELL, CELL))
 pg.draw.circle(player_screen, GREEN, (CELL//2, CELL//2), CELL//4)
 player_screen.set_colorkey((0, 0, 0))
 
-
 pg.display.set_caption("Maze")
 clock = pg.time.Clock()
 
 DIRS = [-SIZE, SIZE, -1, 1] # up, down, left, right
 class Maze:
+    """Handles maze generation and intereaction.
+    Uses Display class to draw the maze."""
     def __init__(self, start, goal):
-        self.grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
-        self.tree = Tree()
-        self.create_maze()
-        # self.create_maze(random.randrange(0, SIZE), random.randrange(0, SIZE))
-        gx, gy = goal % SIZE, goal // SIZE
+        self.graph = self.create_maze(start)
+        self.draw_maze(self.graph)
+
+        gx, gy = goal # Draw goal
         pg.draw.rect(fill_screen, GREEN, (gx*CELL, gy*CELL, CELL, CELL))
+    
+    def create_maze(self, start):
+        grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
+        x, y = start
+        grid[y][x] = 1
 
-    def create_maze(self, root=SIZE * SIZE // 2):
-        self.tree.create_node(root, root) # root node (tag, identifier)
-        rx, ry = root % SIZE, root // SIZE
-        self.grid[ry][rx] = 1
-        queue = []
-        queue.append((rx, ry))
-        while len(queue) > 0:
-            x, y = queue.pop(random.randrange(len(queue)))
-            index = y * SIZE + x
+        graph = nx.Graph()
+        graph.add_node((x, y))
 
-            directions = DIRECTIONS.copy()
-            random.shuffle(directions)
-            for dir in directions:
-                nx = x + dir[0]
-                ny = y + dir[1]
-                if nx < 0 or nx >= SIZE or ny < 0 or ny >= SIZE:
-                    continue
-                if self.grid[ny][nx] == 1:
-                    continue
-                nindex = ny * SIZE + nx
-                # if self.tree.contains(nindex):  # quicker?
-                #     continue
+        stack = [(x, y)]
+        max_x, max_y = x, y
+        while stack:
+            x, y = stack.pop()
+            max_x = max(max_x, x)
+            max_y = max(max_y, y)
 
-                # Create edge between (x, y) and (nx, ny)
-                self.tree.create_node(nindex, nindex, parent=index)
+            unvisited = []
+            for dir in DIRECTIONS:
+                xp = x + dir[0]
+                yp = y + dir[1]
+                if 0 <= xp < SIZE and 0 <= yp < SIZE and not grid[yp][xp]:
+                    unvisited.append((xp, yp))
+            
+            if unvisited:
+                stack.append((x, y))
+                xp, yp = unvisited.pop(random.randrange(len(unvisited)))
                 
-                self.grid[ny][nx] = 1
-                queue.append((nx, ny))
+                graph.add_edge((x, y), (xp, yp))
+                grid[yp][xp] = 1
+                stack.append((xp, yp))
+        
+        return graph
 
-
+    def draw_maze(self, graph):
         for i in range(SIZE+1): # First draw all walls then remove walls between nodes in Maze
             pg.draw.line(maze_screen, GREEN, (0, i * CELL), (SCREEN_SIZE, i * CELL), 2)
             pg.draw.line(maze_screen, GREEN, (i * CELL, 0), (i * CELL, SCREEN_SIZE), 2)
 
-        self.draw_maze(self.tree.get_node(root))
-
-        for i in range(SIZE+1):            
-            for j in range(SIZE+1): # Draw poles at every corner
-                pg.draw.circle(maze_screen, GREEN, (i*CELL, j*CELL), 2)
-
-    def draw_maze(self, node):
         k = 0
-        if node.is_leaf():
-            return
-        x1, y1 = node.tag % SIZE, node.tag // SIZE
-        for child in self.tree.children(node.tag):
-            # draw line between node and child
-            x2, y2 = child.tag % SIZE, child.tag // SIZE
-
+        # Q: Is the same edge drawn twice?
+        # A: No! The edges are unique.
+        for edge in graph.edges():
+            (x1, y1), (x2, y2) = edge
             if x1 == x2: # horizontal wall
                 y = max(y1, y2)
                 a = (x1 * CELL + k, y * CELL)
@@ -113,32 +101,35 @@ class Maze:
                 a = (x * CELL, y1 * CELL + k)
                 b = (x * CELL, y1 * CELL + CELL)
             pg.draw.line(maze_screen, (0, 0, 0), a, b, 2)
-            self.draw_maze(child)
-        
+
+        for i in range(SIZE+1):            
+            for j in range(SIZE+1): # Draw poles at every corner
+                pg.draw.circle(maze_screen, GREEN, (i*CELL, j*CELL), 2)      
+
     def connected(self, a, b):
-        node1 = self.tree.get_node(a)
-        node2 = self.tree.get_node(b)
-        return self.tree.parent(a) == node2 or self.tree.parent(b) == node1
+        return self.graph.has_edge(a, b)
 
 def flood_fill(start):
     Q = Queue()
     Q.put(start)
     while not Q.empty():
-        index = Q.get()
-        if index == GOAL:
-            return True
-        x, y = index % SIZE, index // SIZE
+        pos = Q.get()
+        # if pos == GOAL:
+        #     return True
         
-        step(x, y)
+        step(pos)
 
-        if x < SIZE-1 and maze.connected(index, index+1) and (x+1, y) not in inside:
-            Q.put(index+1)
-        if x > 0 and maze.connected(index, index-1) and (x-1, y) not in inside:
-            Q.put(index-1)
-        if y < SIZE-1 and maze.connected(index, index+SIZE) and (x, y+1) not in inside:
-            Q.put(index+SIZE)
-        if y > 0 and maze.connected(index, index-SIZE) and (x, y-1) not in inside:
-            Q.put(index-SIZE)
+        x, y = pos
+        
+        if y > 0 and maze.connected((x, y), (x, y-1)) and not (x, y-1) in inside: # and inside
+            Q.put((x, y-1))
+        if y < SIZE-1 and maze.connected((x, y), (x, y+1)) and not (x, y+1) in inside:
+            Q.put((x, y+1))
+        if x > 0 and maze.connected((x, y), (x-1, y)) and not (x-1, y) in inside:
+            Q.put((x-1, y))
+        if x < SIZE-1 and maze.connected((x, y), (x+1, y)) and not (x+1, y) in inside:
+            Q.put((x+1, y))
+
 
 # import default dict
 from collections import defaultdict
@@ -156,14 +147,12 @@ def A_star(start, goal):
         if current == goal:
             reconstruct_path(came_from, current)
             return True
-        step(current % SIZE, current // SIZE)
+        step(current)
 
         open_set.remove(current)
-        for dir in DIRS:
-            neighbor = current + dir
-            if neighbor < 0 or neighbor >= SIZE * SIZE:
-                continue
-            if maze.connected(current, neighbor):
+        for dir in DIRECTIONS:
+            neighbor = (current[0] + dir[0], current[1] + dir[1])
+            if 0 <= neighbor[0] < SIZE and 0 <= neighbor[1] < SIZE and maze.connected(current, neighbor):
                 tentative_g_score = g_score[current] + 1  # Redundant, since all positions are visited only once
                 if tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current
@@ -172,27 +161,25 @@ def A_star(start, goal):
                     open_set.add(neighbor)
 
 
-def heuristic(index, goal):  # manhattan distance 
-    x, y = index % SIZE, index // SIZE
-    gx, gy = goal % SIZE, goal // SIZE
+def heuristic(pos, goal):  # manhattan distance 
+    (x, y), (gx, gy) = pos, goal
     return abs(x - gx) + abs(y - gy)
 
 def reconstruct_path(came_from, current, reverse=False):
-    if reverse:
-        # determine path, reverse it, then draw it
-        path = []
-        while current in came_from:
-            path.append(current)
-            current = came_from[current]
-        path.reverse()
-        for index in path:
-            x, y = index % SIZE, index // SIZE
-            step(x, y, GREEN)
-    else:
+    # Draw a path 
+    if not reverse:
         while current in came_from:
             current = came_from[current]  # root has no came_from so terminates there
-            x, y = current % SIZE, current // SIZE
-            step(x, y, GREEN)
+            step(current, GREEN)
+    else:
+        path = [current]  # determine path, reverse it, then draw it
+        while current in came_from:
+            current = came_from[current]
+            path.append(current)
+        path.reverse()
+        for current in path:
+            step(current, GREEN)
+       
 
 # Flip between two agents initially seeking the goal and star respectively
 def A_star_double(start, goal):
@@ -212,14 +199,13 @@ def A_star_double(start, goal):
     # while len(open_set) > 0:
     while True:
         A = min(open_set_A, key=lambda x: f_score_A[x])
-        step(A % SIZE, A // SIZE)
+        step(A)
 
         open_set_A.remove(A)
-        for dir in DIRS:
-            neighbor = A + dir
-            if neighbor < 0 or neighbor >= SIZE * SIZE:
-                continue
-            if maze.connected(A, neighbor):
+
+        for dir in DIRECTIONS:
+            neighbor = (A[0] + dir[0], A[1] + dir[1])
+            if 0 <= neighbor[0] < SIZE and 0 <= neighbor[1] < SIZE and maze.connected(A, neighbor):
                 tentative_g_score = g_score_A[A] + 1
                 if tentative_g_score < g_score_A[neighbor]:
                     came_from_A[neighbor] = A
@@ -229,37 +215,36 @@ def A_star_double(start, goal):
                         open_set_A.add(neighbor)
             
                 if neighbor in open_set_B:
-                    step(neighbor % SIZE, neighbor // SIZE, RED)
+                    step(neighbor, RED)
                     increment_heat_map(neighbor)
                     reconstruct_path(came_from_B, neighbor, True)
                     reconstruct_path(came_from_A, neighbor)
                     return True
             
         B = min(open_set_B, key=lambda x: f_score_B[x])
-        step(B % SIZE, B // SIZE)
+        step(B)
 
         open_set_B.remove(B)
-        for dir in DIRS:
-            neighbor = B + dir
-            if neighbor < 0 or neighbor >= SIZE * SIZE:
-                continue
-            if maze.connected(B, neighbor):
+        for dir in DIRECTIONS:
+            neighbor = (B[0] + dir[0], B[1] + dir[1])
+            if 0 <= neighbor[0] < SIZE and 0 <= neighbor[1] < SIZE and maze.connected(B, neighbor):
                 tentative_g_score = g_score_B[B] + 1
                 if tentative_g_score < g_score_B[neighbor]:
                     came_from_B[neighbor] = B
                     g_score_B[neighbor] = tentative_g_score
-                    f_score_B[neighbor] = tentative_g_score + heuristic(neighbor, start)
+                    f_score_B[neighbor] = tentative_g_score + heuristic(neighbor, goal)
                     if neighbor not in open_set_B:
                         open_set_B.add(neighbor)
             
                 if neighbor in open_set_A:
-                    step(neighbor % SIZE, neighbor // SIZE, RED)
+                    step(neighbor, RED)
                     increment_heat_map(neighbor)
                     reconstruct_path(came_from_B, neighbor, True)
                     reconstruct_path(came_from_A, neighbor)
                     return True
 
 def increment_heat_map(index):
+    return 
     global min_heat, max_heat
     x, y = index % SIZE, index // SIZE
     if heat_map[index % SIZE][index // SIZE] == min_heat:
@@ -269,9 +254,9 @@ def increment_heat_map(index):
 
 
   
-def step(x, y, color=TEAL):
-    inside.add((x, y))
-    fill_screen.fill(color, (x*CELL, y*CELL, CELL, CELL))
+def step(pos, color=TEAL):
+    inside.add(pos)
+    fill_screen.fill(color, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
     update_screen()
     process_input()
     clock.tick(FPS)
@@ -285,6 +270,11 @@ def process_input():
             if event.key == pg.K_ESCAPE:
                 pg.quit()
                 exit()
+
+def pause():
+    while True:
+        process_input()
+        clock.tick(60)
 
 def update_screen(pos=None):
     screen.blit(fill_screen, (0, 0))
@@ -310,13 +300,12 @@ def restart(seed=0):
         random.seed(seed)
     px, py = 0, 0
     fill_screen.fill(BLACK)
-    maze = Maze(0, GOAL)
+    maze = Maze((px, py), GOAL)
     inside = set((px, py))  # set of (x, y) that have been visited
     fill_screen.fill(TEAL, (px*CELL, py*CELL, CELL, CELL))
     update_screen((px, py))
     
     return maze, inside, px, py
-
 
 if not PLAYER:
     seed = 0
@@ -325,10 +314,10 @@ if not PLAYER:
         # seed = 48063
         maze, inside, px, py = restart(seed)
         # print(f"{seed = }")
-        # flood_fill(0)
-        # A_star(0, GOAL)
+        # flood_fill(START)
+        # A_star(START, GOAL)
         # maze, inside, px, py = restart(seed)
-        A_star_double(0, GOAL)
+        A_star_double(START, GOAL)
 else:
     maze, inside, px, py = restart()
     while True:
@@ -345,18 +334,22 @@ else:
                     maze, inside, px, py = restart()
                 
                 if event.key == pg.K_UP:
-                    if py > 0 and maze.connected(py * SIZE + px, (py - 1) * SIZE + px):
+                    if py > 0 and maze.connected((px, py), (px, py-1)):
                         py -= 1
                 elif event.key == pg.K_DOWN:
-                    if py < SIZE-1 and maze.connected(py * SIZE + px, (py + 1) * SIZE + px):
+                    if py < SIZE-1 and maze.connected((px, py), (px, py+1)):
                         py += 1
                 elif event.key == pg.K_LEFT:
-                    if px > 0 and maze.connected(py * SIZE + px, py * SIZE + px - 1):
+                    if px > 0 and maze.connected((px, py), (px-1, py)):
                         px -= 1
                 elif event.key == pg.K_RIGHT:
-                    if px < SIZE-1 and maze.connected(py * SIZE + px, py * SIZE + px + 1):
+                    if px < SIZE-1 and maze.connected((px, py), (px+1, py)):
                         px += 1
 
+
+                if (px, py) == GOAL:
+                    maze, inside, px, py = restart()
+                    continue
                 # Update position
                 if (px, py) not in inside:
                     fill_screen.fill(TEAL, (px*CELL, py*CELL, CELL, CELL))
