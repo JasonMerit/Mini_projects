@@ -12,43 +12,90 @@ import networkx as nx
 from Maze_config import *
 
 DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # up, down, left, right
-# Visualize the maze
-pg.init()
 CELL = SCREEN_SIZE // SIZE
 BLACK, GREEN, TEAL = (20, 20, 20), (20, 120, 20), (20, 70, 20)
 BLUE, RED = (40, 40, 170), (170, 40, 40)
 
-# Screens
-screen = pg.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
-
-fill_screen = pg.Surface((SCREEN_SIZE, SCREEN_SIZE))
-fill_screen.fill(BLACK)
-
-maze_screen = pg.Surface((SCREEN_SIZE, SCREEN_SIZE))
-maze_screen.set_colorkey((0, 0, 0))
-
-heat_map = [[1 for _ in range(SIZE)] for _ in range(SIZE)]
-max_heat, min_heat = 1, 0
-heat_screen = pg.Surface((SCREEN_SIZE, SCREEN_SIZE))
-heat_screen.set_colorkey((0, 0, 0))
-
-player_screen = pg.Surface((CELL, CELL))
-pg.draw.circle(player_screen, GREEN, (CELL//2, CELL//2), CELL//4)
-player_screen.set_colorkey((0, 0, 0))
-
-pg.display.set_caption("Maze")
+pg.init()
 clock = pg.time.Clock()
+
+class Display:
+    """Draws all information from Maze to the screen
+    - screen - main screen
+    - fill_screen - that path traveled thus far
+    - maze_screen - constant layout of maze
+    - player_screen - player circle
+    - heat_screen - heat map
+    """
+    
+    def __init__(self, graph):
+        self.graph = graph
+        
+        # Screens
+        self.screen = pg.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
+        pg.display.set_caption("Maze")
+
+        self.fill_screen = pg.Surface((SCREEN_SIZE, SCREEN_SIZE))
+        self.fill_screen.fill(BLACK)
+        pg.draw.rect(self.fill_screen, TEAL, (START[0]*CELL, START[1]*CELL, CELL, CELL))
+        pg.draw.rect(self.fill_screen, GREEN, (GOAL[0]*CELL, GOAL[1]*CELL, CELL, CELL))
+
+        self.maze_screen = pg.Surface((SCREEN_SIZE, SCREEN_SIZE))
+        self.maze_screen.set_colorkey((0, 0, 0))
+
+        # heat_map = [[1 for _ in range(SIZE)] for _ in range(SIZE)]
+        # max_heat, min_heat = 1, 0
+        self.heat_screen = pg.Surface((SCREEN_SIZE, SCREEN_SIZE))
+        self.heat_screen.set_colorkey((0, 0, 0))
+
+        self.player_screen = pg.Surface((CELL, CELL))
+        pg.draw.circle(self.player_screen, GREEN, (CELL//2, CELL//2), CELL//4)
+        self.player_screen.set_colorkey((0, 0, 0))
+
+        # Draw the graph into appropriate screens
+        for i in range(SIZE+1): # First draw all walls then remove walls between nodes in Maze
+            pg.draw.line(self.maze_screen, GREEN, (0, i * CELL), (SCREEN_SIZE, i * CELL), 2)
+            pg.draw.line(self.maze_screen, GREEN, (i * CELL, 0), (i * CELL, SCREEN_SIZE), 2)
+        
+        k = 0
+        for edge in graph.edges():
+            (x1, y1), (x2, y2) = edge
+            if x1 == x2: # horizontal wall
+                y = max(y1, y2)
+                a = (x1 * CELL + k, y * CELL)
+                b = (x1 * CELL + CELL, y * CELL)
+            else: # vertical wall
+                x = max(x1, x2)
+                a = (x * CELL, y1 * CELL + k)
+                b = (x * CELL, y1 * CELL + CELL)
+            pg.draw.line(self.maze_screen, (0, 0, 0), a, b, 2)
+
+        for i in range(SIZE+1):            
+            for j in range(SIZE+1): # Draw poles at every corner
+                pg.draw.circle(self.maze_screen, GREEN, (i*CELL, j*CELL), 2) 
+        
+        self.update_screen(START)
+
+    def update_screen(self, pos=None):
+        self.screen.blit(self.fill_screen, (0, 0))
+        # min-max normalize heat_map
+        # show_heat_map()
+        
+        self.screen.blit(self.maze_screen, (0, 0))
+        if pos:
+            self.screen.blit(self.player_screen, (pos[0]*CELL, pos[1]*CELL))
+        pg.display.update()
+        
+
+    
 
 DIRS = [-SIZE, SIZE, -1, 1] # up, down, left, right
 class Maze:
     """Handles maze generation and intereaction.
     Uses Display class to draw the maze."""
-    def __init__(self, start, goal):
-        self.graph = self.create_maze(start)
-        self.draw_maze(self.graph)
-
-        gx, gy = goal # Draw goal
-        pg.draw.rect(fill_screen, GREEN, (gx*CELL, gy*CELL, CELL, CELL))
+    def __init__(self):
+        self.graph = self.create_maze(START)
+        self.display = Display(self.graph)
     
     def create_maze(self, start):
         grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
@@ -82,29 +129,18 @@ class Maze:
         
         return graph
 
-    def draw_maze(self, graph):
-        for i in range(SIZE+1): # First draw all walls then remove walls between nodes in Maze
-            pg.draw.line(maze_screen, GREEN, (0, i * CELL), (SCREEN_SIZE, i * CELL), 2)
-            pg.draw.line(maze_screen, GREEN, (i * CELL, 0), (i * CELL, SCREEN_SIZE), 2)
-
-        k = 0
-        # Q: Is the same edge drawn twice?
-        # A: No! The edges are unique.
-        for edge in graph.edges():
-            (x1, y1), (x2, y2) = edge
-            if x1 == x2: # horizontal wall
-                y = max(y1, y2)
-                a = (x1 * CELL + k, y * CELL)
-                b = (x1 * CELL + CELL, y * CELL)
-            else: # vertical wall
-                x = max(x1, x2)
-                a = (x * CELL, y1 * CELL + k)
-                b = (x * CELL, y1 * CELL + CELL)
-            pg.draw.line(maze_screen, (0, 0, 0), a, b, 2)
-
-        for i in range(SIZE+1):            
-            for j in range(SIZE+1): # Draw poles at every corner
-                pg.draw.circle(maze_screen, GREEN, (i*CELL, j*CELL), 2)      
+    def step(self, pos, color=TEAL):
+        inside.add(pos)
+        self.display.fill_screen.fill(color, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
+        self.display.update_screen()
+        process_input()
+        clock.tick(FPS)
+    
+    def player_step(self, pos):
+        self.display.fill_screen.fill(TEAL, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
+        self.display.update_screen(pos)
+        process_input()
+        clock.tick(FPS)
 
     def connected(self, a, b):
         return self.graph.has_edge(a, b)
@@ -117,7 +153,7 @@ def flood_fill(start):
         # if pos == GOAL:
         #     return True
         
-        step(pos)
+        maze.step(pos)
 
         x, y = pos
         
@@ -147,7 +183,7 @@ def A_star(start, goal):
         if current == goal:
             reconstruct_path(came_from, current)
             return True
-        step(current)
+        maze.step(current)
 
         open_set.remove(current)
         for dir in DIRECTIONS:
@@ -170,7 +206,7 @@ def reconstruct_path(came_from, current, reverse=False):
     if not reverse:
         while current in came_from:
             current = came_from[current]  # root has no came_from so terminates there
-            step(current, GREEN)
+            maze.step(current, GREEN)
     else:
         path = [current]  # determine path, reverse it, then draw it
         while current in came_from:
@@ -178,7 +214,7 @@ def reconstruct_path(came_from, current, reverse=False):
             path.append(current)
         path.reverse()
         for current in path:
-            step(current, GREEN)
+            maze.step(current, GREEN)
        
 
 # Flip between two agents initially seeking the goal and star respectively
@@ -199,7 +235,7 @@ def A_star_double(start, goal):
     # while len(open_set) > 0:
     while True:
         A = min(open_set_A, key=lambda x: f_score_A[x])
-        step(A)
+        maze.step(A)
 
         open_set_A.remove(A)
 
@@ -215,14 +251,14 @@ def A_star_double(start, goal):
                         open_set_A.add(neighbor)
             
                 if neighbor in open_set_B:
-                    step(neighbor, RED)
+                    maze.step(neighbor, RED)
                     increment_heat_map(neighbor)
                     reconstruct_path(came_from_B, neighbor, True)
                     reconstruct_path(came_from_A, neighbor)
                     return True
             
         B = min(open_set_B, key=lambda x: f_score_B[x])
-        step(B)
+        maze.step(B)
 
         open_set_B.remove(B)
         for dir in DIRECTIONS:
@@ -237,7 +273,7 @@ def A_star_double(start, goal):
                         open_set_B.add(neighbor)
             
                 if neighbor in open_set_A:
-                    step(neighbor, RED)
+                    maze.step(neighbor, RED)
                     increment_heat_map(neighbor)
                     reconstruct_path(came_from_B, neighbor, True)
                     reconstruct_path(came_from_A, neighbor)
@@ -254,13 +290,6 @@ def increment_heat_map(index):
 
 
   
-def step(pos, color=TEAL):
-    inside.add(pos)
-    fill_screen.fill(color, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
-    update_screen()
-    process_input()
-    clock.tick(FPS)
-
 def process_input():
     for event in pg.event.get():
         if event.type == pg.QUIT:
@@ -276,50 +305,36 @@ def pause():
         process_input()
         clock.tick(60)
 
-def update_screen(pos=None):
-    screen.blit(fill_screen, (0, 0))
-    # min-max normalize heat_map
-    # show_heat_map()
-    
-    screen.blit(maze_screen, (0, 0))
-    if pos:
-        screen.blit(player_screen, (pos[0]*CELL, pos[1]*CELL))
-    pg.display.update()
-
-def show_heat_map():
-    heat_screen.fill(BLACK)
-    process_input()
-    for y in range(SIZE):
-        for x, r in enumerate(heat_map[y]):
-            red = (r - min_heat) / (max_heat - min_heat)
-            heat_screen.fill((red, 0, 0), (x*CELL, y*CELL, CELL, CELL))
-    screen.blit(heat_screen, (0, 0))
+# def show_heat_map():
+#     heat_screen.fill(BLACK)
+#     process_input()
+#     for y in range(SIZE):
+#         for x, r in enumerate(heat_map[y]):
+#             red = (r - min_heat) / (max_heat - min_heat)
+#             heat_screen.fill((red, 0, 0), (x*CELL, y*CELL, CELL, CELL))
+#     screen.blit(heat_screen, (0, 0))
 
 def restart(seed=0):
     if seed:
         random.seed(seed)
-    px, py = 0, 0
-    fill_screen.fill(BLACK)
-    maze = Maze((px, py), GOAL)
-    inside = set((px, py))  # set of (x, y) that have been visited
-    fill_screen.fill(TEAL, (px*CELL, py*CELL, CELL, CELL))
-    update_screen((px, py))
+    maze = Maze()
+    inside = set(START)  # set of (x, y) that have been visited
     
-    return maze, inside, px, py
+    return maze, inside, START
 
 if not PLAYER:
     seed = 0
     while True:
         seed = random.randrange(100000)
         # seed = 48063
-        maze, inside, px, py = restart(seed)
+        maze, inside, (px, py) = restart(seed)
         # print(f"{seed = }")
         # flood_fill(START)
         # A_star(START, GOAL)
-        # maze, inside, px, py = restart(seed)
+        # maze, inside = restart(seed)
         A_star_double(START, GOAL)
 else:
-    maze, inside, px, py = restart()
+    maze, inside, (px, py) = restart()
     while True:
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -331,7 +346,7 @@ else:
                     pg.quit()
                     exit()
                 elif event.key == pg.K_r:
-                    maze, inside, px, py = restart()
+                    maze, inside, (px, py) = restart()
                 
                 if event.key == pg.K_UP:
                     if py > 0 and maze.connected((px, py), (px, py-1)):
@@ -348,13 +363,11 @@ else:
 
 
                 if (px, py) == GOAL:
-                    maze, inside, px, py = restart()
+                    maze, inside, (px, py) = restart()
                     continue
                 # Update position
                 if (px, py) not in inside:
-                    fill_screen.fill(TEAL, (px*CELL, py*CELL, CELL, CELL))
+                    maze.player_step((px, py))
                 inside.add((px, py))
-                update_screen((px, py))
-                pg.display.update()
         
         clock.tick(60)
