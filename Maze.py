@@ -9,12 +9,11 @@ import random
 import pygame as pg
 from queue import Queue
 import networkx as nx
-# random.seed(1)
 from Maze_config import *
 import csv
 
 DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # up, down, left, right
-assert(SCREEN_SIZE % SIZE == 0), f"bad screen size / size ration: {SCREEN_SIZE, SIZE}" 
+
 CELL = SCREEN_SIZE // SIZE
 WIDTH = 1
 BLACK, GREEN, TEAL = (20, 20, 20), (20, 120, 20), (20, 70, 20)
@@ -113,11 +112,26 @@ class Maze:
     """Handles maze generation and intereaction.
     Uses Display class to draw the maze."""
     def __init__(self):
-        self.graph = self._create_maze()
+        self.graph = self._create_maze(MAZE_GENERATOR)
         self.display = Display(self.graph) if DISPLAY else None
     
-    # https://codereview.stackexchange.com/questions/227660/maze-generator-animator-in-python
-    def _create_maze(self):
+    def _create_maze(self, generator):
+        if generator == 0:
+            return self._stack()
+        elif generator == 1:
+            return self._eller()
+        elif generator == 2:
+            return self._wilson()
+        elif generator == 3:
+            return self._kruskal()
+        elif generator == 4:
+            return self._prim()
+        elif generator == 5:
+            return self._hunt_and_kill()
+        else:
+            raise ValueError(f"Unknown generator: {generator}")
+
+    def _stack(self):
         grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
         x, y = 0, 0
         grid[y][x] = 1
@@ -229,7 +243,7 @@ class Maze:
     def _random_walk(self, cell, maze):
         path = [cell]
         while True:
-            dir = random.sample(DIRECTIONS, 1)[0]
+            dir = random.choice(DIRECTIONS)
             xp = cell[0] + dir[0]
             yp = cell[1] + dir[1]
             if xp < 0 or xp >= SIZE or yp < 0 or yp >= SIZE:
@@ -273,7 +287,64 @@ class Maze:
                 continue
             walls.append((cell, (xp, yp)))
         return walls
+    
+    def _hunt_and_kill(self):
+        graph = nx.Graph()
+        grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
+        # unexhausted = [(x, y) for x in range(SIZE) for y in range(SIZE)]
+        # free_cells = set((x, y) for x in range(SIZE) for y in range(SIZE))
 
+        # 1. Choose a starting location.
+        pos = (0, 0)
+        grid[pos[1]][pos[0]] = 1
+        
+        # 4. Repeat steps 2-3 until all locations have been visited. (Hunt can't find any unvisited cells)
+        while True:
+            # 2. Perform a random walk, carving passages to unvisited neighbors, until it is unable to move.
+            while True:
+                directions = DIRECTIONS.copy()
+                random.shuffle(directions)
+                for dir in directions:
+                    xp = pos[0] + dir[0]
+                    yp = pos[1] + dir[1]
+                    if xp < 0 or xp >= SIZE or yp < 0 or yp >= SIZE or grid[yp][xp]:
+                        continue
+
+                    graph.add_edge(pos, (xp, yp))
+                    grid[yp][xp] = 1
+                    pos = (xp, yp)
+                    break
+                else:  # directions exhausted
+                    break
+
+            # 3. Hunt for unvisited cell with visited neighbor.
+            pos, visited = self._hunt(None, grid)
+            if pos is None:
+                return graph
+            grid[pos[1]][pos[0]] = 1
+            graph.add_edge(pos, visited)
+    
+    # def _rando_walk(self, pos, grid, graph):
+        
+
+    def _hunt(self, free_cells, grid):
+        for x in range(SIZE):
+            for y in range(SIZE):
+                if grid[y][x]:
+                    continue
+
+                for dir in DIRECTIONS:
+                    xp = x + dir[0]
+                    yp = y + dir[1]
+                    if not self.in_bounds(xp, yp) or not grid[yp][xp]:
+                        continue
+
+                    return (x, y), (xp, yp)
+        return None, None
+
+    def in_bounds(self, x, y):
+        return 0 < x < SIZE and 0 < y < SIZE
+    
     def step(self, pos, color=TEAL):
         inside.add(pos)
         if DISPLAY:
