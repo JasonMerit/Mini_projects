@@ -63,7 +63,7 @@ class Display:
             pg.draw.line(self.maze_screen, GREEN, (i * CELL, 0), (i * CELL, SCREEN_SIZE), WIDTH)
         
         k = 0
-        for edge in graph.edges():
+        for edge in graph.edges:
             (x1, y1), (x2, y2) = edge
             if x1 == x2: # horizontal wall
                 y = max(y1, y2)
@@ -99,13 +99,13 @@ class Maze:
     """Handles maze generation and intereaction.
     Uses Display class to draw the maze."""
     def __init__(self):
-        self.graph = self.wilson(START)
+        self.graph = self._eller()
         self.display = Display(self.graph)
     
     # https://codereview.stackexchange.com/questions/227660/maze-generator-animator-in-python
-    def create_maze(self, start):
+    def _create_maze(self):
         grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
-        x, y = start
+        x, y = 0, 0
         grid[y][x] = 1
 
         graph = nx.Graph()
@@ -132,15 +132,61 @@ class Maze:
         
         return graph
 
-    def kruskal(self, start):
+    def _eller(self):
+        graph = nx.Graph()  # edges are added horizontally at 2) + 6) and vertically at 3)
+
+        # 1. Initialize the cells of the first row to each exist in their own set.
+        grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]  # Contains info about sets
+        grid[0] = list(range(SIZE)) # initally all unique
+        counter = SIZE
+
+        # 5. Repeat until the last row is reached.
+        for y in range(SIZE-1):
+
+            # 2. Now, randomly join adjacent cells, but only if they are not in the same set.
+            for x in range(SIZE-1):
+                if grid[y][x] != grid[y][x + 1] and random.random() < 0.5:
+                    grid[y][x + 1] = grid[y][x]
+                    graph.add_edge((x, y), (x+1, y))
+
+            # 3. For each set, randomly create vertical connections downward to the next row.
+            # 4. Flesh out the next row by putting any remaining cells into their own sets.
+            for x in range(SIZE):
+                if random.random() < 0.5:
+                    grid[y+1][x] = grid[y][x]
+                    graph.add_edge((x, y), (x, y+1))
+                else:
+                    grid[y+1][x] = counter
+                    counter += 1
+            
+            # 3.1. Ensure that each set has at least one downward connection.
+            unexpanded = set(grid[y]) - set(grid[y+1])
+            for u in unexpanded:
+                positions = [i for i, x in enumerate(grid[y]) if x == u]
+                pos = random.choice(positions)
+                grid[y+1][pos] = u
+                graph.add_edge((pos, y), (pos, y+1))
+            
+
+        # return grid
+
+        # 6. For the last row, join all adjacent cells that do not share a set, and omit the vertical connections, and you’re done!
+        y += 1
+        for x in range(SIZE-1):
+            if grid[y][x] != grid[y][x + 1]:
+                # grid[y][x + 1] = grid[y][x]
+                graph.add_edge((x, y), (x+1, y))
+
+        return graph
+
+    def _kruskal(self):
         grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
         sets = [set([(x, y)]) for x in range(SIZE) for y in range(SIZE)]
         coords = [(x, y) for x in range(SIZE) for y in range(SIZE)]
         random.shuffle(coords)
     
 
-
-    def wilson(self, start):
+    def _wilson(self):
         graph = nx.Graph()
         maze = set()
         cells = [(x, y) for x in range(SIZE) for y in range(SIZE)]
@@ -154,7 +200,7 @@ class Maze:
             if cell in maze:
                 continue
 
-            path = self.random_walk(cell, maze)
+            path = self._random_walk(cell, maze)
             maze.update(path)
             
             last = path.pop(0)
@@ -164,7 +210,7 @@ class Maze:
 
         return graph
 
-    def random_walk(self, cell, maze):
+    def _random_walk(self, cell, maze):
         path = [cell]
         while True:
             dir = random.sample(DIRECTIONS, 1)[0]
@@ -183,6 +229,37 @@ class Maze:
             path.append((xp, yp))
             cell = (xp, yp)
 
+    def _prim(self):
+        graph = nx.Graph()
+        maze = set()
+        cells = [(x, y) for x in range(SIZE) for y in range(SIZE)]
+        grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
+
+        cell = cells.pop(0)
+        maze.add(cell)
+        grid[cell[1]][cell[0]] = 1
+
+        stack = set(self._get_neighbors(cell, grid))
+        while stack:
+            cell = random.choice(stack)
+            # If only one of the cells that the wall divides is visited
+            num_visited = 0
+            for neighbor in self._get_neighbors(cell, grid):
+                if grid[neighbor[1]][neighbor[0]]:
+                    num_visited += 1
+    
+    def _get_neighbors(self, cell, grid):
+        walls = []
+        for dir in DIRECTIONS:
+            xp = cell[0] + dir[0]
+            yp = cell[1] + dir[1]
+            if xp < 0 or xp >= SIZE or yp < 0 or yp >= SIZE or grid[yp][xp]:
+                continue
+            walls.append((cell, (xp, yp)))
+        return walls
+
+
+
     def step(self, pos, color=TEAL):
         inside.add(pos)
         self.display.fill_screen.fill(color, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
@@ -197,6 +274,8 @@ class Maze:
         clock.tick(FPS)
 
     def connected(self, a, b):
+        # return random.random() < 0.5
+        return a in self.graph[b]
         return self.graph.has_edge(a, b)
 
     def draw_path(self, path):
@@ -321,7 +400,6 @@ def A_star_double(start, goal):
                     reconstruct_path(came_from_B, neighbor, True)
                     reconstruct_path(came_from_A, neighbor)
                     return True
-            
         B = min(open_set_B, key=lambda x: f_score_B[x])
         maze.step(B)
 
@@ -366,6 +444,19 @@ def process_input():
 
             if event.key == pg.K_SPACE:
                 return "yikes"
+            if event.key == pg.K_p:
+
+                while True:
+                    event = pg.event.wait()
+                    if event.type == pg.QUIT:
+                        pg.quit()
+                        exit()
+                    if event.type == pg.KEYDOWN:
+                        if event.key == pg.K_ESCAPE:
+                            pg.quit()
+                            exit()
+                    if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
+                        break
 
 def pause():
     while True:
