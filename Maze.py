@@ -12,12 +12,17 @@ import networkx as nx
 from Maze_config import *
 
 DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # up, down, left, right
+assert(SCREEN_SIZE % SIZE == 0), f"bad screen size / size ration: {SCREEN_SIZE, SIZE}" 
 CELL = SCREEN_SIZE // SIZE
+WIDTH = 1
 BLACK, GREEN, TEAL = (20, 20, 20), (20, 120, 20), (20, 70, 20)
 BLUE, RED = (40, 40, 170), (170, 40, 40)
 
 pg.init()
 clock = pg.time.Clock()
+
+screen = pg.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
+pg.display.set_caption("Maze")
 
 class Display:
     """Draws all information from Maze to the screen
@@ -54,8 +59,8 @@ class Display:
 
         # Draw the graph into appropriate screens
         for i in range(SIZE+1): # First draw all walls then remove walls between nodes in Maze
-            pg.draw.line(self.maze_screen, GREEN, (0, i * CELL), (SCREEN_SIZE, i * CELL), 2)
-            pg.draw.line(self.maze_screen, GREEN, (i * CELL, 0), (i * CELL, SCREEN_SIZE), 2)
+            pg.draw.line(self.maze_screen, GREEN, (0, i * CELL), (SCREEN_SIZE, i * CELL), WIDTH)
+            pg.draw.line(self.maze_screen, GREEN, (i * CELL, 0), (i * CELL, SCREEN_SIZE), WIDTH)
         
         k = 0
         for edge in graph.edges():
@@ -68,11 +73,11 @@ class Display:
                 x = max(x1, x2)
                 a = (x * CELL, y1 * CELL + k)
                 b = (x * CELL, y1 * CELL + CELL)
-            pg.draw.line(self.maze_screen, (0, 0, 0), a, b, 2)
+            pg.draw.line(self.maze_screen, (0, 0, 0), a, b, WIDTH)
 
         for i in range(SIZE+1):            
             for j in range(SIZE+1): # Draw poles at every corner
-                pg.draw.circle(self.maze_screen, GREEN, (i*CELL, j*CELL), 2) 
+                pg.draw.circle(self.maze_screen, GREEN, (i*CELL, j*CELL), WIDTH) 
         
         self.update_screen(START)
 
@@ -94,9 +99,10 @@ class Maze:
     """Handles maze generation and intereaction.
     Uses Display class to draw the maze."""
     def __init__(self):
-        self.graph = self.create_maze(START)
+        self.graph = self.wilson(START)
         self.display = Display(self.graph)
     
+    # https://codereview.stackexchange.com/questions/227660/maze-generator-animator-in-python
     def create_maze(self, start):
         grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
         x, y = start
@@ -106,11 +112,8 @@ class Maze:
         graph.add_node((x, y))
 
         stack = [(x, y)]
-        max_x, max_y = x, y
         while stack:
             x, y = stack.pop()
-            max_x = max(max_x, x)
-            max_y = max(max_y, y)
 
             unvisited = []
             for dir in DIRECTIONS:
@@ -129,6 +132,57 @@ class Maze:
         
         return graph
 
+    def kruskal(self, start):
+        grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
+        sets = [set([(x, y)]) for x in range(SIZE) for y in range(SIZE)]
+        coords = [(x, y) for x in range(SIZE) for y in range(SIZE)]
+        random.shuffle(coords)
+    
+
+
+    def wilson(self, start):
+        graph = nx.Graph()
+        maze = set()
+        cells = [(x, y) for x in range(SIZE) for y in range(SIZE)]
+
+        cell = cells.pop(0)
+        maze.add(cell)
+
+        while cells:
+            # Choose arbitrary cell to start path from
+            cell = cells.pop(0)
+            if cell in maze:
+                continue
+
+            path = self.random_walk(cell, maze)
+            maze.update(path)
+            
+            last = path.pop(0)
+            for p in path:
+                graph.add_edge(last, p)
+                last = p
+
+        return graph
+
+    def random_walk(self, cell, maze):
+        path = [cell]
+        while True:
+            dir = random.sample(DIRECTIONS, 1)[0]
+            xp = cell[0] + dir[0]
+            yp = cell[1] + dir[1]
+            if xp < 0 or xp >= SIZE or yp < 0 or yp >= SIZE:
+                continue
+            if (xp, yp) in maze:  # Path entered maze
+                path.append((xp, yp))
+                return path
+            if (xp, yp) in path:  # No loops!
+                index = path.index((xp, yp))
+                path = path[:index+1]
+                cell = path[-1]
+                continue
+            path.append((xp, yp))
+            cell = (xp, yp)
+
     def step(self, pos, color=TEAL):
         inside.add(pos)
         self.display.fill_screen.fill(color, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
@@ -144,6 +198,20 @@ class Maze:
 
     def connected(self, a, b):
         return self.graph.has_edge(a, b)
+
+    def draw_path(self, path):
+        x, y = path[0]
+        for xp, yp in path[1:]:
+            a = ((x + 0.5) * CELL, (y + 0.5) * CELL)
+            b = ((xp + 0.5) * CELL, (yp + 0.5) * CELL)
+            pg.draw.line(self.display.fill_screen, RED, a, b, CELL // 4)
+            x, y = xp, yp
+            self.display.update_screen()
+            process_input()
+            clock.tick(FPS)
+        self.display.update_screen()
+
+        
 
 def flood_fill(start):
     Q = Queue()
@@ -202,19 +270,16 @@ def heuristic(pos, goal):  # manhattan distance
     return abs(x - gx) + abs(y - gy)
 
 def reconstruct_path(came_from, current, reverse=False):
-    # Draw a path 
-    if not reverse:
-        while current in came_from:
-            current = came_from[current]  # root has no came_from so terminates there
-            maze.step(current, GREEN)
-    else:
-        path = [current]  # determine path, reverse it, then draw it
-        while current in came_from:
-            current = came_from[current]
-            path.append(current)
+    # Determine path, then draw it
+    path = [current]
+    while current in came_from:
+        current = came_from[current]  # start has no came_from so terminates there
+        path.append(current)
+
+    if reverse:
         path.reverse()
-        for current in path:
-            maze.step(current, GREEN)
+
+    maze.draw_path(path)
        
 
 # Flip between two agents initially seeking the goal and star respectively
@@ -288,8 +353,6 @@ def increment_heat_map(index):
     heat_map[index % SIZE][index // SIZE] += 1
     max_heat = max(max_heat, heat_map[y][x])
 
-
-  
 def process_input():
     for event in pg.event.get():
         if event.type == pg.QUIT:
@@ -300,9 +363,15 @@ def process_input():
                 pg.quit()
                 exit()
 
+
+            if event.key == pg.K_SPACE:
+                return "yikes"
+
 def pause():
     while True:
-        process_input()
+        if process_input():
+            print("unpause")
+            return
         clock.tick(60)
 
 # def show_heat_map():
@@ -323,18 +392,21 @@ def restart(seed=0):
     return maze, inside, START
 
 if not PLAYER:
-    seed = 0
     while True:
         seed = random.randrange(100000)
         # seed = 48063
         maze, inside, (px, py) = restart(seed)
-        # print(f"{seed = }")
-        # flood_fill(START)
-        # A_star(START, GOAL)
-        # maze, inside = restart(seed)
-        A_star_double(START, GOAL)
+        if SOLVER == 0:
+            flood_fill(START)
+        elif SOLVER == 1:
+            A_star(START, GOAL)
+        elif SOLVER == 2:
+            A_star_double(START, GOAL)
 else:
+    # seed = 48063
     maze, inside, (px, py) = restart()
+    # maze.draw_path(PATH)
+    # pause()
     while True:
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -366,8 +438,8 @@ else:
                     maze, inside, (px, py) = restart()
                     continue
                 # Update position
-                if (px, py) not in inside:
-                    maze.player_step((px, py))
+                # if (px, py) not in inside:
+                maze.player_step((px, py))
                 inside.add((px, py))
         
         clock.tick(60)

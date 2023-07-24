@@ -1,5 +1,6 @@
 PLAYER = False
+SOLVER = 2
 SCREEN_SIZE = 640
-SIZE = 20
+SIZE = 40 # 20 -> 2, 40 -> 1
 START, GOAL = (0, 0), (SIZE-1, SIZE-1)
 FPS = 300
