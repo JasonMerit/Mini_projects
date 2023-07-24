@@ -1,5 +1,6 @@
 PLAYER = False
 SOLVER = 2
+DISPLAY = False
 SCREEN_SIZE = 570
 SIZE = 30 # 20 -> 2, 40 -> 1
 START, GOAL = (0, 0), (SIZE-1, SIZE-1)

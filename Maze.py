@@ -1,4 +1,5 @@
 """
+https://weblog.jamisbuck.org/archives.html
 MAZE GENERATION using list and saving edges in tree. Note tree guarantees no cycles.
 BUG:
     - Double A* cheats! But it seems to predict which is the correct path: Seed: 24769 / size: 20
@@ -10,6 +11,7 @@ from queue import Queue
 import networkx as nx
 # random.seed(1)
 from Maze_config import *
+import csv
 
 DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # up, down, left, right
 assert(SCREEN_SIZE % SIZE == 0), f"bad screen size / size ration: {SCREEN_SIZE, SIZE}" 
@@ -90,6 +92,18 @@ class Display:
         if pos:
             self.screen.blit(self.player_screen, (pos[0]*CELL, pos[1]*CELL))
         pg.display.update()
+    
+    def draw_path(self, path):
+        x, y = path[0]
+        for xp, yp in path[1:]:
+            a = ((x + 0.5) * CELL, (y + 0.5) * CELL)
+            b = ((xp + 0.5) * CELL, (yp + 0.5) * CELL)
+            pg.draw.line(self.fill_screen, RED, a, b, CELL // 4)
+            x, y = xp, yp
+            self.update_screen()
+            process_input()
+            clock.tick(FPS)
+        self.update_screen()
         
 
     
@@ -99,8 +113,8 @@ class Maze:
     """Handles maze generation and intereaction.
     Uses Display class to draw the maze."""
     def __init__(self):
-        self.graph = self._eller()
-        self.display = Display(self.graph)
+        self.graph = self._create_maze()
+        self.display = Display(self.graph) if DISPLAY else None
     
     # https://codereview.stackexchange.com/questions/227660/maze-generator-animator-in-python
     def _create_maze(self):
@@ -136,44 +150,46 @@ class Maze:
         graph = nx.Graph()  # edges are added horizontally at 2) + 6) and vertically at 3)
 
         # 1. Initialize the cells of the first row to each exist in their own set.
-        grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]  # Contains info about sets
-        grid[0] = list(range(SIZE)) # initally all unique
+        # grid = [[0 for _ in range(SIZE)] for _ in range(SIZE)]  # Contains info about sets
+        # grid[0] = list(range(SIZE)) # initally all unique
         counter = SIZE
-
+        row = list(range(SIZE))
         # 5. Repeat until the last row is reached.
         for y in range(SIZE-1):
 
             # 2. Now, randomly join adjacent cells, but only if they are not in the same set.
             for x in range(SIZE-1):
-                if grid[y][x] != grid[y][x + 1] and random.random() < 0.5:
-                    grid[y][x + 1] = grid[y][x]
+                if row[x] != row[x + 1] and random.random() < 0.5:
+                    row[x + 1] = row[x]
                     graph.add_edge((x, y), (x+1, y))
 
             # 3. For each set, randomly create vertical connections downward to the next row.
             # 4. Flesh out the next row by putting any remaining cells into their own sets.
+            next_row = [0 for _ in range(SIZE)]
             for x in range(SIZE):
                 if random.random() < 0.5:
-                    grid[y+1][x] = grid[y][x]
+                    next_row[x] = row[x]
                     graph.add_edge((x, y), (x, y+1))
                 else:
-                    grid[y+1][x] = counter
+                    next_row[x] = counter
                     counter += 1
             
             # 3.1. Ensure that each set has at least one downward connection.
-            unexpanded = set(grid[y]) - set(grid[y+1])
+            unexpanded = set(row) - set(next_row)
             for u in unexpanded:
-                positions = [i for i, x in enumerate(grid[y]) if x == u]
+                positions = [i for i, x in enumerate(row) if x == u]
                 pos = random.choice(positions)
-                grid[y+1][pos] = u
+                next_row[pos] = u
                 graph.add_edge((pos, y), (pos, y+1))
-            
+        
+            row = next_row
 
         # return grid
 
         # 6. For the last row, join all adjacent cells that do not share a set, and omit the vertical connections, and you’re done!
-        y += 1
+        # y += 1
         for x in range(SIZE-1):
-            if grid[y][x] != grid[y][x + 1]:
+            if row[x] != row[x + 1]:
                 # grid[y][x + 1] = grid[y][x]
                 graph.add_edge((x, y), (x+1, y))
 
@@ -258,18 +274,18 @@ class Maze:
             walls.append((cell, (xp, yp)))
         return walls
 
-
-
     def step(self, pos, color=TEAL):
         inside.add(pos)
-        self.display.fill_screen.fill(color, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
-        self.display.update_screen()
+        if DISPLAY:
+            self.display.fill_screen.fill(color, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
+            self.display.update_screen()
         process_input()
         clock.tick(FPS)
     
     def player_step(self, pos):
-        self.display.fill_screen.fill(TEAL, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
-        self.display.update_screen(pos)
+        if DISPLAY:
+            self.display.fill_screen.fill(TEAL, (pos[0]*CELL, pos[1]*CELL, CELL, CELL))
+            self.display.update_screen(pos)
         process_input()
         clock.tick(FPS)
 
@@ -279,16 +295,7 @@ class Maze:
         return self.graph.has_edge(a, b)
 
     def draw_path(self, path):
-        x, y = path[0]
-        for xp, yp in path[1:]:
-            a = ((x + 0.5) * CELL, (y + 0.5) * CELL)
-            b = ((xp + 0.5) * CELL, (yp + 0.5) * CELL)
-            pg.draw.line(self.display.fill_screen, RED, a, b, CELL // 4)
-            x, y = xp, yp
-            self.display.update_screen()
-            process_input()
-            clock.tick(FPS)
-        self.display.update_screen()
+        self.display.draw_path(path)
 
         
 
@@ -317,6 +324,7 @@ def flood_fill(start):
 # import default dict
 from collections import defaultdict
 def A_star(start, goal):
+    count = 0
     open_set = set()
     open_set.add(start)
     came_from = {}
@@ -326,10 +334,12 @@ def A_star(start, goal):
     f_score[start] = heuristic(start, goal)
 
     while len(open_set) > 0:
+        count += 1
         current = min(open_set, key=lambda x: f_score[x])
         if current == goal:
-            reconstruct_path(came_from, current)
-            return True
+            if DISPLAY:
+                reconstruct_path(came_from, current)
+            return count
         maze.step(current)
 
         open_set.remove(current)
@@ -363,6 +373,7 @@ def reconstruct_path(came_from, current, reverse=False):
 
 # Flip between two agents initially seeking the goal and star respectively
 def A_star_double(start, goal):
+    count = 0
     open_set_A = set([start])
     open_set_B = set([goal])
     came_from_A = {}
@@ -378,6 +389,7 @@ def A_star_double(start, goal):
 
     # while len(open_set) > 0:
     while True:
+        count += 1
         A = min(open_set_A, key=lambda x: f_score_A[x])
         maze.step(A)
 
@@ -395,11 +407,14 @@ def A_star_double(start, goal):
                         open_set_A.add(neighbor)
             
                 if neighbor in open_set_B:
+                    if not DISPLAY:
+                        return count
                     maze.step(neighbor, RED)
-                    increment_heat_map(neighbor)
+                    # increment_heat_map(neighbor)
                     reconstruct_path(came_from_B, neighbor, True)
                     reconstruct_path(came_from_A, neighbor)
-                    return True
+                    return count
+        count += 1
         B = min(open_set_B, key=lambda x: f_score_B[x])
         maze.step(B)
 
@@ -416,11 +431,13 @@ def A_star_double(start, goal):
                         open_set_B.add(neighbor)
             
                 if neighbor in open_set_A:
+                    if not DISPLAY:
+                        return count
                     maze.step(neighbor, RED)
                     increment_heat_map(neighbor)
                     reconstruct_path(came_from_B, neighbor, True)
                     reconstruct_path(came_from_A, neighbor)
-                    return True
+                    return count
 
 def increment_heat_map(index):
     return 
@@ -482,17 +499,35 @@ def restart(seed=0):
     
     return maze, inside, START
 
+single_steps_avg = 0
+double_steps_avg = 0
+iteration = 1
+table = []
 if not PLAYER:
     while True:
-        seed = random.randrange(100000)
+        # seed a random number
+        seed = random.randrange(10e100)
         # seed = 48063
         maze, inside, (px, py) = restart(seed)
         if SOLVER == 0:
             flood_fill(START)
         elif SOLVER == 1:
             A_star(START, GOAL)
+            maze, inside, (px, py) = restart(seed)
         elif SOLVER == 2:
-            A_star_double(START, GOAL)
+            single_result = A_star(START, GOAL)
+            single_steps_avg += 1/iteration * (single_result - single_steps_avg)
+
+            maze, inside, (px, py) = restart(seed)
+            double_result = A_star_double(START, GOAL)
+            double_steps_avg += 1/iteration * (double_result - double_steps_avg)
+
+            print(iteration, round(single_steps_avg, 2), round(double_steps_avg, 2))
+            iteration += 1
+            table.append([seed, single_result, double_result])
+            with open("Maze_out.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerows(table)
 else:
     # seed = 48063
     maze, inside, (px, py) = restart()
