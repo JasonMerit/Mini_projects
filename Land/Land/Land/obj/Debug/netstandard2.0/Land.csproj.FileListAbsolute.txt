@@ -1,0 +1,15 @@
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\bin\Debug\netstandard2.0\Land.deps.json
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\bin\Debug\netstandard2.0\Land.dll
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\bin\Debug\netstandard2.0\ref\Land.dll
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\bin\Debug\netstandard2.0\Land.pdb
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\Land.csproj.AssemblyReference.cache
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\Land.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\App.xaml.g.cs
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\MainPage.xaml.g.cs
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\Land.AssemblyInfoInputs.cache
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\Land.AssemblyInfo.cs
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\Land.csproj.CoreCompileInputs.cache
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\XamlC.stamp
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\Land.dll
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\refint\Land.dll
+C:\Users\PC\Documents\Mini_projects\Land\Land\Land\obj\Debug\netstandard2.0\Land.pdb
