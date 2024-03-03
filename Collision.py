@@ -8,9 +8,9 @@ from math import ceil, log
 
 # Settings
 FRAMES = 0#200 # / 60 seconds
-INIT_COUNT = 100
-continuous = True      # Lerping ball position to actual position after colliding with wall
-elastic = True          # Moementum and energy conservation
+INIT_COUNT = 1000
+continuous = False      # Lerping ball position to actual position after colliding with wall
+elastic = False          # Moementum and energy conservation
 min_trans_dist = True   # Minimum translation distance to avoid sticking
 detection = 2          # 0: None, 1: Naive, 2: Sweep and Prune, 3: Uniform Grid Partition, 
                         # 4: KD_Tree, 5: Bounding Volume Hierarchy 3.72s
@@ -32,6 +32,7 @@ ACC = (0, 1000)
 VEL = 2
 FRICTION = 1  # Energy loss upon collision
 T = 4  # KD Tree depth before terminating
+DAMPING = 0.5
 # seed = 3
 # random.seed(seed)  
 
@@ -39,6 +40,7 @@ T = 4  # KD Tree depth before terminating
 
 # Create the ball
 class Ball:
+    inactive = False
     def __init__(self, pos, vel, acc, radius, color):
         self.p : V = V(pos)
         self.v = V(vel)
@@ -135,25 +137,30 @@ class Ball:
             tc = (H - self.r - self.p.y) / self.v.y      
             self.p.y += tc * (self.v.y)
             self.v.y *= -1
-    
+  
     def collide_wall_discrete(self):
         """Discrete collision detection and response"""
         if self.p.x - self.r < 0: # Left wall
             self.p.x = self.r
-            self.v.x *= -1
+            self.v.x *= -DAMPING 
         elif self.p.x + self.r > W: # Right wall
             self.p.x = W - self.r
-            self.v.x *= -1
+            self.v.x *= -DAMPING
         if self.p.y - self.r < 0: # Top wall
             self.p.y = self.r
-            self.v.y *= -1
+            self.v.y *= -DAMPING
         elif self.p.y + self.r > H: # Bottom wall
             self.p.y = H - self.r
-            self.v.y *= -1
+            self.v.y *= -DAMPING
     
     def update(self):
         # Particle dynamics
+        if self.inactive:
+            return
         self.wall_collision()
+        if self.v.dist_squared(V((0, 0))) < 0.01:
+            self.inactive = True
+            return
         self.v += self.a * dt
         self.p += self.v * dt
     
@@ -204,9 +211,9 @@ class Box():
         for i in range(self.count):
             pos = Pos[i]
             vel = random.uniform(-VEL, VEL) * K, random.uniform(-VEL, VEL) * K
-            r = random.randint(10, 20)
+            r = 5#random.randint(10, 20)
             self.balls.append(Ball(pos, vel, self.acc, r, random.choice(RAINBOW)))
-        self.balls[-1].tagged = True
+        # self.balls[-1].tagged = True
     
     def update(self, screen):
         # Update the balls
@@ -249,15 +256,15 @@ class Box():
                     self.ball_collision_response(balls[i], balls[j])
                     
                     # if either ball is tagged, tag both
-                    if not balls[i].tagged and not balls[j].tagged:
-                        continue 
+                    # if not balls[i].tagged and not balls[j].tagged:
+                    #     continue 
                     
-                    if balls[i].tagged and balls[i].speed > balls[j].speed:
-                        balls[j].tagged = True
-                        continue
+                    # if balls[i].tagged and balls[i].speed > balls[j].speed:
+                    #     balls[j].tagged = True
+                    #     continue
                     
-                    if balls[j].tagged and balls[i].speed < balls[j].speed:
-                        balls[i].tagged = True
+                    # if balls[j].tagged and balls[i].speed < balls[j].speed:
+                    #     balls[i].tagged = True
 
 
         
@@ -379,6 +386,7 @@ class Box():
     def inelastic_collision(self, a, b):
         """Inelastic collision between two balls"""
         a.v, b.v = b.v, a.v
+        # a.v, b.v = b.v * DAMPING, a.v * DAMPING
         self.collision_displacement(a, b)
 
     def minimum_translation_distance(self, a, b):
